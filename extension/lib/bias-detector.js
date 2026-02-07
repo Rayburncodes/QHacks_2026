@@ -528,7 +528,7 @@ class BiasDetector {
         } else if (severity === 'Moderate') {
             return `You show some tendency to trade quickly after losses (${emotionalPct.toFixed(1)}% within 15 minutes). Take breaks after losses to avoid emotional decisions.`;
         } else {
-            return 'You're managing emotions well after losses. Continue this discipline.';
+            return "You're managing emotions well after losses. Continue this discipline.";
         }
     }
 }
