@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Breaker — Demo Trading Platform</title>
+<style>
+  :root { --bg: #0f1923; --surface: #1a2332; --border: #2a3a4d; --gold: #c5a55a; --green: #26a69a; --red: #ef5350; --text: #d1d4dc; --muted: #8b8d93; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; }
+
+  /* Layout */
+  .app { display: grid; grid-template-columns: 1fr 360px; grid-template-rows: auto 1fr auto; height: 100vh; }
+  header { grid-column: 1 / -1; background: var(--surface); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  header h1 { font-family: Georgia, serif; font-size: 18px; color: var(--gold); }
+  .header-actions { display: flex; gap: 8px; }
+  .header-actions button { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .header-actions button:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* Chart area */
+  .chart-area { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .chart-header { padding: 16px 20px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); }
+  .chart-price { font-family: Georgia, serif; font-size: 32px; font-weight: 700; }
+  .chart-price.up { color: var(--green); }
+  .chart-price.down { color: var(--red); }
+  .chart-change { font-size: 14px; padding: 4px 8px; border-radius: 4px; }
+  .chart-change.up { background: rgba(38,166,154,.15); color: var(--green); }
+  .chart-change.down { background: rgba(239,83,80,.15); color: var(--red); }
+  .chart-canvas-wrap { flex: 1; padding: 10px; position: relative; }
+  canvas#chart { width: 100%; height: 100%; }
+
+  /* Order form */
+  .order-panel { background: var(--surface); display: flex; flex-direction: column; }
+  .order-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--gold); font-family: Georgia, serif; }
+  #order-form { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+
+  .form-row { display: flex; flex-direction: column; gap: 4px; }
+  .form-row label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .form-row select, .form-row input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 14px; }
+  .form-row select:focus, .form-row input:focus { outline: none; border-color: var(--gold); }
+
+  .action-btns { display: flex; gap: 8px; }
+  .action-btns button { flex: 1; padding: 12px; border: 2px solid transparent; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all .2s; }
+  #buy-btn  { background: rgba(38,166,154,.15); color: var(--green); border-color: var(--green); }
+  #buy-btn:hover { background: rgba(38,166,154,.3); }
+  #buy-btn.active { background: var(--green); color: #fff; }
+  #sell-btn { background: rgba(239,83,80,.15); color: var(--red); border-color: var(--red); }
+  #sell-btn:hover { background: rgba(239,83,80,.3); }
+  #sell-btn.active { background: var(--red); color: #fff; }
+
+  #confirm-trade { padding: 14px; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all .15s; }
+  #confirm-trade.buy { background: var(--green); color: #fff; }
+  #confirm-trade.sell { background: var(--red); color: #fff; }
+  #confirm-trade:hover { filter: brightness(1.15); }
+
+  /* Footer - P/L & History */
+  footer { grid-column: 1 / -1; background: var(--surface); border-top: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .pl-display { display: flex; gap: 24px; }
+  .pl-item { text-align: center; }
+  .pl-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .pl-value { font-family: Georgia, serif; font-size: 18px; font-weight: 700; }
+  .pl-value.positive { color: var(--green); }
+  .pl-value.negative { color: var(--red); }
+  .pl-value.neutral { color: var(--muted); }
+
+  /* Trade log */
+  .trade-log { max-height: 120px; overflow-y: auto; font-size: 11px; }
+  .trade-log table { width: 100%; border-collapse: collapse; }
+  .trade-log th { color: var(--muted); text-align: left; padding: 3px 8px; font-weight: 500; }
+  .trade-log td { padding: 3px 8px; border-top: 1px solid rgba(255,255,255,.04); }
+  .trade-log .buy-row { color: var(--green); }
+  .trade-log .sell-row { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Demo Trading Platform</h1>
+    <div class="header-actions">
+      <button onclick="seedHistory()">Seed Trade History</button>
+      <button onclick="clearHistory()">Clear History</button>
+    </div>
+  </header>
+
+  <div class="chart-area">
+    <div class="chart-header">
+      <span id="chart-asset" style="font-weight:600;font-size:16px;">AAPL</span>
+      <span id="chart-price" class="chart-price up">$178.52</span>
+      <span id="chart-change" class="chart-change up">+1.23%</span>
+    </div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+
+  <div class="order-panel">
+    <div class="order-header">Place Order</div>
+    <form id="order-form" onsubmit="return false">
+      <div class="form-row">
+        <label>Asset</label>
+        <select id="asset-select" onchange="changeAsset()">
+          <option>AAPL</option><option>TSLA</option><option>BTC/USD</option><option>ETH/USD</option><option>SPY</option>
+        </select>
+      </div>
+      <div class="action-btns">
+        <button type="button" id="buy-btn" class="active" data-action="buy" onclick="setAction('Buy')">BUY</button>
+        <button type="button" id="sell-btn" data-action="sell" onclick="setAction('Sell')">SELL</button>
+      </div>
+      <div class="form-row">
+        <label>Price</label>
+        <input type="text" id="price-display" readonly data-field="price" />
+      </div>
+      <div class="form-row">
+        <label>Quantity</label>
+        <input type="number" id="quantity-input" value="10" min="1" max="1000" data-field="quantity" />
+      </div>
+      <button type="button" id="confirm-trade" class="buy" data-action="confirm">CONFIRM ORDER</button>
+    </form>
+  </div>
+
+  <footer>
+    <div class="pl-display">
+      <div class="pl-item"><div class="pl-label">Session P/L</div><div class="pl-value neutral" id="pl-value">$0.00</div></div>
+      <div class="pl-item"><div class="pl-label">Trades Today</div><div class="pl-value neutral" id="trade-count">0</div></div>
+      <div class="pl-item"><div class="pl-label">Win Rate</div><div class="pl-value neutral" id="win-rate">—</div></div>
+    </div>
+    <div class="trade-log" id="trade-log">
+      <table><thead><tr><th>Time</th><th>Side</th><th>Asset</th><th>Qty</th><th>Price</th><th>P/L</th></tr></thead><tbody id="log-body"></tbody></table>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ─── Demo Trading Platform Logic ──────────────────────── */
+const ASSETS = {
+  'AAPL':    { base: 178, vol: 3 },
+  'TSLA':    { base: 185, vol: 8 },
+  'BTC/USD': { base: 47500, vol: 1200 },
+  'ETH/USD': { base: 2650, vol: 150 },
+  'SPY':     { base: 475, vol: 4 },
+};
+
+let currentAsset = 'AAPL';
+let currentAction = 'Buy';
+let prices = {};
+let priceHistory = {};
+let sessionPL = 0;
+let tradeCount = 0;
+let wins = 0;
+let positions = {};
+
+// Init prices
+for (const [a, c] of Object.entries(ASSETS)) {
+  prices[a] = c.base;
+  priceHistory[a] = [c.base];
+}
+
+function setAction(action) {
+  currentAction = action;
+  document.getElementById('buy-btn').classList.toggle('active', action === 'Buy');
+  document.getElementById('sell-btn').classList.toggle('active', action === 'Sell');
+  document.getElementById('confirm-trade').className = action === 'Buy' ? 'buy' : 'sell';
+  document.getElementById('confirm-trade').textContent = action === 'Buy' ? 'CONFIRM BUY' : 'CONFIRM SELL';
+}
+
+function changeAsset() {
+  currentAsset = document.getElementById('asset-select').value;
+  updateDisplay();
+  drawChart();
+}
+
+function updatePrices() {
+  for (const [a, c] of Object.entries(ASSETS)) {
+    const change = (Math.random() - 0.5) * c.vol * 0.1;
+    prices[a] = Math.max(c.base * 0.8, prices[a] + change);
+    priceHistory[a].push(prices[a]);
+    if (priceHistory[a].length > 100) priceHistory[a].shift();
+  }
+  updateDisplay();
+  drawChart();
+}
+
+function updateDisplay() {
+  const p = prices[currentAsset];
+  const base = ASSETS[currentAsset].base;
+  const pct = ((p - base) / base * 100);
+  const up = pct >= 0;
+  document.getElementById('chart-asset').textContent = currentAsset;
+  document.getElementById('chart-price').textContent = currentAsset.includes('/') ? '$' + p.toFixed(2) : '$' + p.toFixed(2);
+  document.getElementById('chart-price').className = 'chart-price ' + (up ? 'up' : 'down');
+  document.getElementById('chart-change').textContent = (up ? '+' : '') + pct.toFixed(2) + '%';
+  document.getElementById('chart-change').className = 'chart-change ' + (up ? 'up' : 'down');
+  document.getElementById('price-display').value = p.toFixed(2);
+}
+
+function drawChart() {
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width; canvas.height = rect.height;
+  const data = priceHistory[currentAsset];
+  if (data.length < 2) return;
+  const min = Math.min(...data) * 0.998;
+  const max = Math.max(...data) * 1.002;
+  const w = canvas.width; const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  for (let i = 0; i < 5; i++) { const y = (h / 5) * i; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+  // Line
+  const up = data[data.length - 1] >= data[0];
+  ctx.strokeStyle = up ? '#26a69a' : '#ef5350';
+  ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((v - min) / (max - min)) * h;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, up ? 'rgba(38,166,154,0.15)' : 'rgba(239,83,80,0.15)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+}
+
+// Confirm handler — this is the native handler; Circuit Breaker intercepts before this
+document.getElementById('confirm-trade').addEventListener('click', function() {
+  const asset = document.getElementById('asset-select').value;
+  const price = parseFloat(document.getElementById('price-display').value);
+  const qty = parseInt(document.getElementById('quantity-input').value) || 1;
+
+  // Calculate P/L based on position
+  let pl = 0;
+  if (!positions[asset]) positions[asset] = { qty: 0, avgPrice: 0 };
+  const pos = positions[asset];
+
+  if (currentAction === 'Buy') {
+    if (pos.qty < 0) { pl = (pos.avgPrice - price) * Math.min(Math.abs(pos.qty), qty); }
+    const totalQty = pos.qty + qty;
+    pos.avgPrice = totalQty !== 0 ? ((pos.avgPrice * pos.qty) + (price * qty)) / totalQty : price;
+    pos.qty = totalQty;
+  } else {
+    if (pos.qty > 0) { pl = (price - pos.avgPrice) * Math.min(pos.qty, qty); }
+    pos.qty -= qty;
+    if (pos.qty < 0) pos.avgPrice = price;
+  }
+
+  pl = +pl.toFixed(2);
+  sessionPL += pl;
+  tradeCount++;
+  if (pl > 0) wins++;
+
+  // Update footer
+  const plEl = document.getElementById('pl-value');
+  plEl.textContent = (sessionPL >= 0 ? '+' : '') + '$' + sessionPL.toFixed(2);
+  plEl.className = 'pl-value ' + (sessionPL > 0 ? 'positive' : sessionPL < 0 ? 'negative' : 'neutral');
+  document.getElementById('trade-count').textContent = tradeCount;
+  const wr = tradeCount > 0 ? (wins / tradeCount * 100).toFixed(0) + '%' : '—';
+  document.getElementById('win-rate').textContent = wr;
+
+  // Add to log
+  const now = new Date().toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const row = document.createElement('tr');
+  row.className = currentAction === 'Buy' ? 'buy-row' : 'sell-row';
+  row.innerHTML = `<td>${now}</td><td>${currentAction}</td><td>${asset}</td><td>${qty}</td><td>$${price.toFixed(2)}</td><td style="color:${pl>=0?'#26a69a':'#ef5350'}">${pl>=0?'+':''}$${pl.toFixed(2)}</td>`;
+  const body = document.getElementById('log-body');
+  body.insertBefore(row, body.firstChild);
+});
+
+async function seedHistory() {
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({ type: 'SEED_DEMO_DATA' }, (r) => {
+      alert('Seeded ' + (r?.seeded || 0) + ' demo trades into Circuit Breaker storage.');
+    });
+  } else {
+    alert('Extension not detected. Load Circuit Breaker first.');
+  }
+}
+
+function clearHistory() {
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({ type: 'CLEAR_DATA' }, () => alert('Data cleared.'));
+  }
+  sessionPL = 0; tradeCount = 0; wins = 0; positions = {};
+  document.getElementById('pl-value').textContent = '$0.00';
+  document.getElementById('trade-count').textContent = '0';
+  document.getElementById('win-rate').textContent = '—';
+  document.getElementById('log-body').innerHTML = '';
+}
+
+// Start
+setAction('Buy');
+updateDisplay();
+drawChart();
+setInterval(updatePrices, 1500);
+window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>

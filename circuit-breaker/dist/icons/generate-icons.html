@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Generate Circuit Breaker Icons</title>
+</head>
+<body style="background:#1a1a2e;color:#fff;font-family:system-ui;padding:40px;text-align:center">
+<h2>Circuit Breaker — Icon Generator</h2>
+<p style="color:#8b8d93">Open this file in Chrome and it will auto-download the three icon PNGs.</p>
+<canvas id="c16"  width="16"  height="16"></canvas>
+<canvas id="c48"  width="48"  height="48"></canvas>
+<canvas id="c128" width="128" height="128"></canvas>
+<script>
+function draw(id, size) {
+  const c = document.getElementById(id);
+  const ctx = c.getContext('2d');
+  // Background circle
+  const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  grad.addColorStop(0, '#1a2744');
+  grad.addColorStop(1, '#0f1d32');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI*2); ctx.fill();
+
+  // Gold border
+  ctx.strokeStyle = '#c5a55a'; ctx.lineWidth = Math.max(1, size * 0.04);
+  ctx.beginPath(); ctx.arc(size/2, size/2, size/2 - ctx.lineWidth, 0, Math.PI*2); ctx.stroke();
+
+  // Lightning bolt
+  ctx.fillStyle = '#c5a55a';
+  const s = size / 128;
+  ctx.beginPath();
+  ctx.moveTo(68*s, 16*s); ctx.lineTo(38*s, 68*s); ctx.lineTo(58*s, 68*s);
+  ctx.lineTo(52*s, 112*s); ctx.lineTo(90*s, 54*s); ctx.lineTo(70*s, 54*s);
+  ctx.lineTo(78*s, 16*s);
+  ctx.closePath(); ctx.fill();
+
+  // Download
+  c.toBlob(function(blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'icon' + size + '.png'; a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+setTimeout(() => draw('c16', 16), 100);
+setTimeout(() => draw('c48', 48), 200);
+setTimeout(() => draw('c128', 128), 300);
+</script>
+</body>
+</html>

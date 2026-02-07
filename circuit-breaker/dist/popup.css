@@ -1,0 +1,129 @@
+/* ─── Circuit Breaker — "Golden Age" Popup Theme ─────── */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  width: 420px;
+  min-height: 540px;
+  background: linear-gradient(180deg, #0a1628 0%, #0f1d32 100%);
+  color: #e8e6e3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 13px;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.cb-popup-header {
+  text-align: center;
+  padding: 20px 20px 10px;
+  border-bottom: 1px solid rgba(197,165,90,.18);
+}
+.cb-popup-header h1 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 20px; font-weight: 700; color: #c5a55a;
+  letter-spacing: .5px; margin: 0 0 2px;
+}
+.cb-tagline { font-size: 11px; color: #8b8d93; }
+
+/* ── Tabs ────────────────────────────────────────────── */
+.cb-tabs {
+  display: flex; border-bottom: 1px solid rgba(197,165,90,.12);
+}
+.cb-tabs button {
+  flex: 1; padding: 10px 0; background: transparent;
+  border: none; border-bottom: 2px solid transparent;
+  color: #8b8d93; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.cb-tabs button:hover { color: #c5a55a; }
+.cb-tabs button.active {
+  color: #c5a55a; border-bottom-color: #c5a55a;
+}
+
+/* ── Loading & Empty ─────────────────────────────────── */
+.cb-loading { text-align: center; padding: 40px; color: #8b8d93; }
+.cb-empty   { text-align: center; padding: 30px 20px; color: #8b8d93; }
+.cb-hint    { font-size: 11px; margin-top: 6px; }
+
+/* ── Dashboard Sections ──────────────────────────────── */
+.cb-dashboard { padding: 16px; }
+.cb-section { margin-bottom: 20px; }
+.cb-section-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-size: 14px; font-weight: 600; color: #c5a55a;
+  margin-bottom: 10px; letter-spacing: .3px;
+}
+
+/* ── Discipline Score ────────────────────────────────── */
+.cb-score-wrap { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+.cb-score-ring { position: relative; width: 90px; height: 90px; }
+.cb-score-ring svg { transform: rotate(-90deg); }
+.cb-score-number {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 28px; font-weight: 700; color: #c5a55a;
+}
+.cb-score-label  { font-size: 12px; color: #8b8d93; }
+.cb-score-detail { font-size: 11px; color: #6b6d73; margin-top: 2px; }
+
+/* ── Bias Breakdown (Recharts) ───────────────────────── */
+.cb-chart-wrap { background: rgba(255,255,255,.03); border-radius: 10px; padding: 12px; }
+
+/* ── Coach's Corner ──────────────────────────────────── */
+.cb-coach-card {
+  background: rgba(197,165,90,.06); border: 1px solid rgba(197,165,90,.12);
+  border-radius: 10px; padding: 14px; margin-bottom: 10px;
+}
+.cb-coach-card h4 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 13px; color: #d4af37; margin-bottom: 6px;
+}
+.cb-coach-card p { font-size: 12px; color: #a0a2a8; line-height: 1.5; }
+
+/* ── Import / Export ──────────────────────────────────── */
+.cb-import-row { display: flex; gap: 8px; }
+.cb-btn-import { width: 100%; text-align: center; padding: 10px 20px; font-size: 13px; }
+.cb-import-status {
+  font-size: 12px; color: #c5a55a; text-align: center;
+  padding: 6px 10px; margin-bottom: 8px;
+  background: rgba(197,165,90,.08); border-radius: 6px;
+}
+.cb-export-row { display: flex; gap: 8px; }
+
+/* ── Buttons ─────────────────────────────────────────── */
+.cb-btn-gold {
+  display: inline-block; padding: 10px 20px;
+  background: linear-gradient(135deg, #c5a55a, #d4af37);
+  color: #0a1628; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: opacity .2s;
+}
+.cb-btn-gold:hover { opacity: .85; }
+
+.cb-btn-sm {
+  padding: 7px 14px; background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 6px;
+  color: #a0a2a8; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all .2s;
+}
+.cb-btn-sm:hover { background: rgba(255,255,255,.12); color: #e8e6e3; }
+.cb-btn-danger { color: #e74c3c; border-color: rgba(231,76,60,.3); }
+.cb-btn-danger:hover { background: rgba(231,76,60,.12); }
+
+.cb-seed-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.06); }
+
+/* ── Settings ────────────────────────────────────────── */
+.cb-settings { padding: 16px 20px; }
+.cb-setting-group { margin-bottom: 16px; }
+.cb-setting-group label {
+  display: block; font-size: 12px; color: #8b8d93;
+  margin-bottom: 4px; font-weight: 500;
+}
+.cb-setting-group input {
+  width: 100%; padding: 9px 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 6px; color: #e8e6e3; font-size: 14px;
+}
+.cb-setting-group input:focus { outline: none; border-color: #c5a55a; }
+
+/* ── Recharts overrides ──────────────────────────────── */
+.recharts-text { fill: #8b8d93 !important; font-size: 11px; }
+.recharts-cartesian-grid line { stroke: rgba(255,255,255,.06); }

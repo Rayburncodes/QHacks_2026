@@ -9,7 +9,7 @@ venv/
 env/
 ENV/
 *.egg-info/
-dist/
+/dist/
 build/
 
 # Flask
