@@ -447,7 +447,15 @@
       biasCost = 0;
     }
     function msg(m) {
-      return new Promise((r) => chrome.runtime.sendMessage(m, r));
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(m, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
     }
     chrome.runtime.onMessage.addListener((m) => {
       if (m.type === "COOLDOWN_EXPIRED") overlay.remove();

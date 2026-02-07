@@ -4,7 +4,15 @@
 
   /* ── Helpers ──────────────────────────────────────────── */
   function msg(m) {
-    return new Promise(function (r) { chrome.runtime.sendMessage(m, r); });
+    return new Promise(function (resolve, reject) {
+      chrome.runtime.sendMessage(m, function(response) {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
   }
 
   function h(tag, attrs) {
