@@ -128,7 +128,7 @@
       if (document.body) {
         this.mo.observe(document.body, { childList: true, subtree: true });
       }
-      console.log("[Circuit Breaker] Observer active on", window.location.hostname);
+      console.log("[HeuristX] Observer active on", window.location.hostname);
     }
     /** Let the next confirm click pass through unblocked. */
     allowOneConfirm() {
@@ -251,7 +251,7 @@
       <div class="cb-modal">
         <div class="cb-header">
           <div class="cb-icon"></div>
-          <h2 class="cb-title">Circuit Breaker</h2>
+          <h2 class="cb-title">HeuristX</h2>
           <p class="cb-subtitle">Behavioral pattern detected \u2014 review before confirming</p>
         </div>
         <div class="cb-body">
@@ -458,11 +458,25 @@
     });
     // ── Floating Action Button & Mini Dashboard ──────────────
     function createFAB() {
+      // Avoid duplicates
+      if (document.getElementById("cb-fab")) return;
       // FAB button
       const fab = document.createElement("div");
       fab.id = "cb-fab";
-      fab.innerHTML = "CB";
-      fab.title = "Circuit Breaker";
+      try {
+        const fabImg = document.createElement("img");
+        fabImg.src = chrome.runtime.getURL("icons/heuristx_x.png");
+        fabImg.alt = "HeuristX";
+        fabImg.style.cssText = "width:38px;height:38px;object-fit:contain;pointer-events:none;";
+        fabImg.onerror = function() { fab.textContent = "HX"; fab.style.fontWeight = "700"; fab.style.fontSize = "14px"; fab.style.color = "#c5a55a"; };
+        fab.appendChild(fabImg);
+      } catch(e) {
+        fab.textContent = "HX";
+        fab.style.fontWeight = "700";
+        fab.style.fontSize = "14px";
+        fab.style.color = "#c5a55a";
+      }
+      fab.title = "HeuristX";
       document.body.appendChild(fab);
 
       // Mini dashboard panel
@@ -506,16 +520,16 @@
             return;
           }
 
-          const trades7d = stats.tradesLast7d || [];
-          const total7d = trades7d.length;
-          const flagged7d = trades7d.filter(t => t.flags && t.flags.length > 0).length;
-          const clean7d = total7d - flagged7d;
+          const trades30d = stats.tradesLast30d || [];
+          const total30d = trades30d.length;
+          const flagged30d = trades30d.filter(t => t.flags && t.flags.length > 0).length;
+          const clean30d = total30d - flagged30d;
           const score = stats.disciplineScore ?? 100;
           const mtdCost = (stats.monthToDateBiasCost || 0).toFixed(2);
 
           // Count biases
           const biasCounts = {};
-          for (const t of trades7d) {
+          for (const t of trades30d) {
             if (t.flags) for (const f of t.flags) {
               biasCounts[f] = (biasCounts[f] || 0) + 1;
             }
@@ -533,24 +547,24 @@
               '<div class="cb-mini-bias-row"><span class="cb-mini-bias-name">' + (BIAS_LABELS[type] || type) + '</span><span class="cb-mini-bias-count">' + count + '</span></div>'
             ).join("");
           } else {
-            biasListHtml = '<div class="cb-mini-clean">All clean trades this week</div>';
+            biasListHtml = '<div class="cb-mini-clean">All clean trades this month</div>';
           }
 
           panel.innerHTML =
             '<div class="cb-mini-header">' +
-              '<div class="cb-mini-title">Circuit Breaker</div>' +
-              '<div class="cb-mini-subtitle">7-day summary</div>' +
+              '<div class="cb-mini-title">HeuristX</div>' +
+              '<div class="cb-mini-subtitle">30-day summary</div>' +
             '</div>' +
             '<div class="cb-mini-score-section">' +
               '<div class="cb-mini-score" style="color:' + scoreColor + '">' + score + '</div>' +
               '<div class="cb-mini-score-label">Discipline Score</div>' +
             '</div>' +
             '<div class="cb-mini-stats">' +
-              '<div class="cb-mini-stat"><span class="cb-mini-stat-num">' + total7d + '</span><span class="cb-mini-stat-lbl">Trades</span></div>' +
-              '<div class="cb-mini-stat"><span class="cb-mini-stat-num">' + flagged7d + '</span><span class="cb-mini-stat-lbl">Flagged</span></div>' +
+              '<div class="cb-mini-stat"><span class="cb-mini-stat-num">' + total30d + '</span><span class="cb-mini-stat-lbl">Trades</span></div>' +
+              '<div class="cb-mini-stat"><span class="cb-mini-stat-num">' + flagged30d + '</span><span class="cb-mini-stat-lbl">Flagged</span></div>' +
               '<div class="cb-mini-stat"><span class="cb-mini-stat-num">$' + mtdCost + '</span><span class="cb-mini-stat-lbl">Bias Cost</span></div>' +
             '</div>' +
-            '<div class="cb-mini-biases-title">Top Biases (7d)</div>' +
+            '<div class="cb-mini-biases-title">Top Biases (30d)</div>' +
             '<div class="cb-mini-biases">' + biasListHtml + '</div>' +
             '<div class="cb-mini-footer">' +
               '<button class="cb-mini-btn" id="cb-mini-import">Import CSV</button>' +
@@ -596,7 +610,7 @@
       console.warn("[CB] Observer start failed:", e);
     }
 
-    console.log("[Circuit Breaker] Content script loaded.");
+    console.log("[HeuristX] Content script loaded.");
   })();
 })();
 //# sourceMappingURL=content.js.map

@@ -1,4 +1,4 @@
-/* ─── Circuit Breaker — "Golden Age" Popup Theme ─────── */
+/* ─── HeuristX — "Golden Age" Popup Theme ────────────── */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -16,6 +16,9 @@ body {
   text-align: center;
   padding: 20px 20px 10px;
   border-bottom: 1px solid rgba(197,165,90,.18);
+}
+.cb-popup-header img.cb-logo {
+  height: 36px; margin-bottom: 4px; display: block; margin-left: auto; margin-right: auto;
 }
 .cb-popup-header h1 {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;

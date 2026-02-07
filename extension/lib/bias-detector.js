@@ -48,8 +48,8 @@ class BiasDetector {
             ? timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length 
             : 0;
 
-        // Pattern 1: Rapid-fire trades (within 5 minutes)
-        const rapidTrades = timeDiffs.filter(d => d < 5).length;
+        // Pattern 1: Rapid-fire trades (within 1 minute)
+        const rapidTrades = timeDiffs.filter(d => d < 1).length;
         const rapidTradePct = (rapidTrades / this.trades.length) * 100;
 
         // Pattern 2: Increasing frequency after small gains/losses
@@ -75,37 +75,37 @@ class BiasDetector {
         // Score calculation based on harmful patterns
         let score = 0;
 
-        // Pattern 1: Excessively high trades per day (>15/day avg or >25/day max)
-        if (avgTradesPerDay > 15) {
-            score += Math.min(30, (avgTradesPerDay / 15) * 15);
+        // Pattern 1: Excessively high trades per day (>50/day avg or >80/day max)
+        if (avgTradesPerDay > 50) {
+            score += Math.min(20, (avgTradesPerDay / 50) * 8);
         }
-        if (maxTradesPerDay > 25) {
-            score += Math.min(25, (maxTradesPerDay / 25) * 12);
+        if (maxTradesPerDay > 80) {
+            score += Math.min(15, (maxTradesPerDay / 80) * 8);
         }
 
-        // Pattern 2: Rapid-fire trades (>40% within 5 minutes)
-        if (rapidTradePct > 40) {
-            score += Math.min(25, (rapidTradePct / 40) * 15);
-        } else if (rapidTradePct > 20) {
-            score += Math.min(15, (rapidTradePct / 20) * 10);
+        // Pattern 2: Rapid-fire trades (>60% within 1 minute)
+        if (rapidTradePct > 60) {
+            score += Math.min(20, (rapidTradePct / 60) * 10);
+        } else if (rapidTradePct > 40) {
+            score += Math.min(10, (rapidTradePct / 40) * 5);
         }
 
         // Pattern 3: Increasing frequency after small moves
-        if (frequencyIncreaseRatio > 1.5) {
-            score += Math.min(20, (frequencyIncreaseRatio / 1.5) * 15);
+        if (frequencyIncreaseRatio > 3.0) {
+            score += Math.min(10, (frequencyIncreaseRatio / 3.0) * 6);
         }
 
         // Pattern 4: High transaction costs relative to returns
-        if (costToReturnRatio > 0.3 && totalNetReturn > 0) {
-            score += Math.min(20, (costToReturnRatio / 0.3) * 15);
-        } else if (costToReturnRatio > 0.5) {
-            score += 25; // Costs exceed returns
+        if (costToReturnRatio > 0.8 && totalNetReturn > 0) {
+            score += Math.min(10, (costToReturnRatio / 0.8) * 6);
+        } else if (costToReturnRatio > 1.5) {
+            score += 15; // Costs greatly exceed returns
         }
 
-        const severity = score < 30 ? 'Low' : score < 60 ? 'Moderate' : 'High';
+        const severity = score < 50 ? 'Low' : score < 80 ? 'Moderate' : 'High';
 
         return {
-            detected: score > 25,
+            detected: score > 50,
             severity: severity,
             score: Math.min(100, Math.round(score * 10) / 10),
             metrics: {
@@ -490,7 +490,7 @@ class BiasDetector {
 
     _getOvertradingDescription(severity, avgTrades, rapidPct, costRatio) {
         if (severity === 'High') {
-            return `You're averaging ${avgTrades.toFixed(1)} trades per day with ${rapidPct.toFixed(1)}% occurring within 5 minutes. Transaction costs represent ${(costRatio * 100).toFixed(1)}% of your net returns. This suggests impulsive, strategy-less trading that increases costs and emotional stress.`;
+            return `You're averaging ${avgTrades.toFixed(1)} trades per day with ${rapidPct.toFixed(1)}% occurring within 1 minute. Transaction costs represent ${(costRatio * 100).toFixed(1)}% of your net returns. This suggests impulsive, strategy-less trading that increases costs and emotional stress.`;
         } else if (severity === 'Moderate') {
             return `Your trading frequency (${avgTrades.toFixed(1)} trades/day) is elevated with ${rapidPct.toFixed(1)}% rapid-fire trades. Consider whether each trade aligns with your strategy before executing.`;
         } else {

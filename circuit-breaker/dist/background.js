@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  console.log("[Circuit Breaker] Background v2.1 loaded");
+  console.log("[HeuristX] Background v2.1 loaded");
   // src/shared/constants.ts
   var DEFAULT_SETTINGS = {
     cooldownMinutes: 5,
@@ -12,13 +12,14 @@
   var ROLLING_WINDOWS = {
     RECENT_TRADES: 20,
     LAST_24H_MS: 24 * 60 * 60 * 1e3,
-    LAST_7D_MS: 7 * 24 * 60 * 60 * 1e3
+    LAST_7D_MS: 7 * 24 * 60 * 60 * 1e3,
+    LAST_30D_MS: 30 * 24 * 60 * 60 * 1e3
   };
   var BIAS_THRESHOLDS = {
     /* Overtrading */
-    OVERTRADING_FREQUENCY_MULTIPLIER: 2.5,
-    OVERTRADING_BURST_COUNT: 5,
-    OVERTRADING_BURST_WINDOW_MINUTES: 15,
+    OVERTRADING_FREQUENCY_MULTIPLIER: 5,
+    OVERTRADING_BURST_COUNT: 15,
+    OVERTRADING_BURST_WINDOW_MINUTES: 5,
     /* Revenge Trading */
     REVENGE_SIZE_MULTIPLIER: 2,
     REVENGE_WINDOW_MINUTES: 30,
@@ -115,34 +116,34 @@
       const currentRate = lastHour.length + 1;
       const ratio = avg > 0 ? currentRate / avg : currentRate > 3 ? 3 : 1;
       if (ratio > BIAS_THRESHOLDS.OVERTRADING_FREQUENCY_MULTIPLIER) {
-        score += Math.min(50, ratio / BIAS_THRESHOLDS.OVERTRADING_FREQUENCY_MULTIPLIER * 25);
+        score += Math.min(30, ratio / BIAS_THRESHOLDS.OVERTRADING_FREQUENCY_MULTIPLIER * 12);
         factors.push(`Trading at ${ratio.toFixed(1)}\xD7 your usual rate this hour`);
       }
       const burstMs = BIAS_THRESHOLDS.OVERTRADING_BURST_WINDOW_MINUTES * 6e4;
       const burst = this.trades.filter((t) => now - new Date(t.timestamp).getTime() < burstMs);
       if (burst.length + 1 > BIAS_THRESHOLDS.OVERTRADING_BURST_COUNT) {
-        score += 30;
+        score += 20;
         factors.push(
           `${burst.length + 1} trades in the last ${BIAS_THRESHOLDS.OVERTRADING_BURST_WINDOW_MINUTES} min`
         );
       }
       const recent = this.trades.slice(-20);
-      if (recent.length >= 6) {
+      if (recent.length >= 8) {
         const mid = Math.floor(recent.length / 2);
         const wr1 = recent.slice(0, mid).filter((t) => (t.pl ?? 0) > 0).length / mid;
         const wr2 = recent.slice(mid).filter((t) => (t.pl ?? 0) > 0).length / (recent.length - mid);
-        if (wr2 < wr1 - 0.15 && currentRate > 2) {
-          score += 20;
+        if (wr2 < wr1 - 0.25 && currentRate > 5) {
+          score += 10;
           factors.push("Win rate declining while trade frequency increases");
         }
       }
       score = Math.min(100, score);
       return {
-        detected: score >= 30,
+        detected: score >= 50,
         type: "overtrading",
-        severity: score >= 70 ? "high" : score >= 45 ? "moderate" : "low",
+        severity: score >= 85 ? "high" : score >= 65 ? "moderate" : "low",
         score,
-        description: score >= 30 ? "You are trading more frequently than your baseline. High-frequency trading during stress often leads to poor decisions." : "Trade frequency is within normal range.",
+        description: score >= 50 ? "You are trading significantly more frequently than your baseline. This level of activity is often driven by impulse rather than strategy." : "Trade frequency is within normal range.",
         factors
       };
     }
@@ -736,7 +737,10 @@
   async function addTrade(trade) {
     const trades = await getTrades();
     trades.push(trade);
-    await set(STORAGE_KEYS.TRADES, trades.slice(-500));
+    // Keep all trades from the last 30 days
+    const cutoff = Date.now() - ROLLING_WINDOWS.LAST_30D_MS;
+    const trimmed = trades.filter(t => new Date(t.timestamp).getTime() > cutoff);
+    await set(STORAGE_KEYS.TRADES, trimmed);
   }
   async function getRecentTrades(windowMs) {
     const trades = await getTrades();
@@ -744,7 +748,7 @@
     return trades.filter((t) => new Date(t.timestamp).getTime() > cutoff);
   }
   var getTradesLast24h = () => getRecentTrades(ROLLING_WINDOWS.LAST_24H_MS);
-  var getTradesLast7d = () => getRecentTrades(ROLLING_WINDOWS.LAST_7D_MS);
+  var getTradesLast30d = () => getRecentTrades(ROLLING_WINDOWS.LAST_30D_MS);
   async function getSettings() {
     return get(STORAGE_KEYS.SETTINGS, { ...DEFAULT_SETTINGS });
   }
@@ -999,7 +1003,12 @@
 
     const allTrades = [...existingTrades, ...analyzed];
     allTrades.sort((a, b) => a.timestamp - b.timestamp);
-    await chrome.storage.local.set({ [STORAGE_KEYS.TRADES]: allTrades.slice(-500) });
+    // Keep all trades from the last 30 days (no count cap)
+    const cutoff30d = Date.now() - ROLLING_WINDOWS.LAST_30D_MS;
+    const trimmed = allTrades.filter(t => new Date(t.timestamp).getTime() > cutoff30d);
+    // If all trades are older than 30 days (e.g. historical CSV), keep them all
+    const toStore = trimmed.length > 0 ? trimmed : allTrades;
+    await chrome.storage.local.set({ [STORAGE_KEYS.TRADES]: toStore });
     for (const t of analyzed) {
       await updateFingerprint(t);
     }
@@ -1116,12 +1125,16 @@
     return { ok: true };
   }
   async function getStats() {
-    const [trades, last24h, last7d] = await Promise.all([
+    const [trades, last24h, last30d] = await Promise.all([
       getTrades(),
       getTradesLast24h(),
-      getTradesLast7d()
+      getTradesLast30d()
     ]);
     const last20 = trades.slice(-20);
+    // If no trades in the last 30 days but we have trades, fall back to all trades
+    // so the dashboard still shows imported/historical data
+    const displayTrades = last30d.length > 0 ? last30d : trades;
+    const display24h = last24h.length > 0 ? last24h : trades;
     const avgTradeSize = {};
     const counts = {};
     for (const t of trades) {
@@ -1130,7 +1143,7 @@
       counts[t.asset] = (counts[t.asset] || 0) + 1;
     }
     for (const a of Object.keys(avgTradeSize)) avgTradeSize[a] /= counts[a];
-    const avgTradesPerHour7d = last7d.length / Math.max(1, 168);
+    const avgTradesPerHour30d = last30d.length / Math.max(1, 720);
     let maxStreak = 0, tempStreak = 0, currentLossStreak = 0;
     for (const t of trades) {
       if ((t.pl ?? 0) < 0) {
@@ -1146,25 +1159,28 @@
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
     const mtd = trades.filter((t) => new Date(t.timestamp) >= monthStart);
-    const monthToDateBiasCost = mtd.reduce((s, t) => s + (t.biasCost || 0), 0);
+    // If no MTD trades, compute bias cost across all trades
+    const biasCostTrades = mtd.length > 0 ? mtd : trades;
+    const monthToDateBiasCost = biasCostTrades.reduce((s, t) => s + (t.biasCost || 0), 0);
     const total = trades.length || 1;
     const flagged = trades.filter((t) => t.flags && t.flags.length > 0).length;
     const cooled = trades.filter((t) => t.cooledOff).length;
-    // Discipline score: penalize for flagged trades, loss streaks, and high bias cost
-    const flagPenalty = (flagged / total) * 60;         // up to -60 for all trades flagged
-    const streakPenalty = Math.min(20, maxStreak * 4);  // up to -20 for long loss streaks
-    const costPenalty = Math.min(15, monthToDateBiasCost / 200 * 15); // up to -15 for high bias cost
-    const coolBonus = total > 0 ? (cooled / total) * 10 : 0;  // up to +10 for using cooling-off
+    // Discipline score: gentle penalties so most traders stay in the 70-100 range
+    const flagRatio = flagged / total;
+    const flagPenalty = flagRatio > 0.5 ? 20 : flagRatio > 0.3 ? 12 : flagRatio > 0.15 ? 5 : 0;
+    const streakPenalty = maxStreak >= 8 ? 10 : maxStreak >= 5 ? 5 : 0;
+    const costPenalty = monthToDateBiasCost > 1000 ? 8 : monthToDateBiasCost > 500 ? 4 : 0;
+    const coolBonus = total > 0 ? Math.min(15, (cooled / total) * 30) : 0;
     const disciplineScore = Math.max(0, Math.min(
       100,
       Math.round(100 - flagPenalty - streakPenalty - costPenalty + coolBonus)
     ));
     return {
       tradesLast20: last20,
-      tradesLast24h: last24h,
-      tradesLast7d: last7d,
+      tradesLast24h: display24h,
+      tradesLast30d: displayTrades,
       avgTradeSize,
-      avgTradesPerHour7d,
+      avgTradesPerHour30d,
       lossStreak: maxStreak,
       currentLossStreak,
       monthToDateBiasCost,

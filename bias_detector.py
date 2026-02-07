@@ -1,3 +1,5 @@
+
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -44,8 +46,8 @@ class BiasDetector:
         time_diffs = self.df['Timestamp'].diff().dt.total_seconds() / 60  # minutes
         avg_time_between_trades = time_diffs[time_diffs > 0].mean()
         
-        # Detect rapid-fire trading (trades within very short intervals - 5 minutes)
-        rapid_trades = (time_diffs < 5).sum()
+        # Detect rapid-fire trading (trades within very short intervals - 1 minute)
+        rapid_trades = (time_diffs < 1).sum()
         rapid_trade_pct = (rapid_trades / len(self.df)) * 100
         
         # Pattern: Increasing trade frequency after small gains or minor losses
@@ -79,32 +81,32 @@ class BiasDetector:
         # Score calculation based on harmful patterns
         score = 0
         
-        # Pattern 1: Excessively high trades per day (threshold: >15/day average or >25/day max)
-        if avg_trades_per_day > 15:
-            score += min(30, (avg_trades_per_day / 15) * 15)
-        if max_trades_per_day > 25:
-            score += min(25, (max_trades_per_day / 25) * 12)
+        # Pattern 1: Excessively high trades per day (threshold: >50/day average or >80/day max)
+        if avg_trades_per_day > 50:
+            score += min(20, (avg_trades_per_day / 50) * 8)
+        if max_trades_per_day > 80:
+            score += min(15, (max_trades_per_day / 80) * 8)
         
-        # Pattern 2: Rapid-fire trades (>40% within 5 minutes)
-        if rapid_trade_pct > 40:
-            score += min(25, (rapid_trade_pct / 40) * 15)
-        elif rapid_trade_pct > 20:
-            score += min(15, (rapid_trade_pct / 20) * 10)
+        # Pattern 2: Rapid-fire trades (>60% within 1 minute)
+        if rapid_trade_pct > 60:
+            score += min(20, (rapid_trade_pct / 60) * 10)
+        elif rapid_trade_pct > 40:
+            score += min(10, (rapid_trade_pct / 40) * 5)
         
-        # Pattern 3: Increasing frequency after small moves (ratio > 1.5 indicates faster trading)
-        if frequency_increase_ratio > 1.5:
-            score += min(20, (frequency_increase_ratio / 1.5) * 15)
+        # Pattern 3: Increasing frequency after small moves (ratio > 3.0 indicates faster trading)
+        if frequency_increase_ratio > 3.0:
+            score += min(10, (frequency_increase_ratio / 3.0) * 6)
         
-        # Pattern 4: High transaction costs relative to returns (>30% of net return)
-        if cost_to_return_ratio > 0.3 and total_net_return > 0:
-            score += min(20, (cost_to_return_ratio / 0.3) * 15)
-        elif cost_to_return_ratio > 0.5:
-            score += 25  # Costs exceed returns
+        # Pattern 4: High transaction costs relative to returns (>80% of net return)
+        if cost_to_return_ratio > 0.8 and total_net_return > 0:
+            score += min(10, (cost_to_return_ratio / 0.8) * 6)
+        elif cost_to_return_ratio > 1.5:
+            score += 15  # Costs greatly exceed returns
         
-        severity = 'Low' if score < 30 else 'Moderate' if score < 60 else 'High'
+        severity = 'Low' if score < 50 else 'Moderate' if score < 80 else 'High'
         
         return {
-            'detected': score > 25,
+            'detected': score > 50,
             'severity': severity,
             'score': min(100, round(score, 1)),
             'metrics': {
@@ -474,7 +476,7 @@ class BiasDetector:
     
     def _get_overtrading_description(self, severity, avg_trades, rapid_pct, cost_ratio):
         if severity == 'High':
-            return f"You're averaging {avg_trades:.1f} trades per day with {rapid_pct:.1f}% occurring within 5 minutes. Transaction costs represent {cost_ratio:.1f}% of your net returns. This suggests impulsive, strategy-less trading that increases costs and emotional stress."
+            return f"You're averaging {avg_trades:.1f} trades per day with {rapid_pct:.1f}% occurring within 1 minute. Transaction costs represent {cost_ratio:.1f}% of your net returns. This suggests impulsive, strategy-less trading that increases costs and emotional stress."
         elif severity == 'Moderate':
             return f"Your trading frequency ({avg_trades:.1f} trades/day) is elevated with {rapid_pct:.1f}% rapid-fire trades. Consider whether each trade aligns with your strategy before executing."
         else:

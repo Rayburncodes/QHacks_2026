@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Circuit Breaker",
+  "name": "HeuristX",
   "version": "1.0.0",
-  "description": "Real-time behavioral bias detection for traders. Detects overtrading, revenge trading, and loss aversion — then intervenes before you confirm.",
+  "description": "Real-time behavioral bias detection for traders. Detects overtrading, revenge trading, and loss aversion \u2014 then intervenes before you confirm.",
   "permissions": [
     "storage"
   ],
@@ -35,5 +35,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/heuristx_x.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
