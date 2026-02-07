@@ -9,7 +9,7 @@ class BiasDetector {
             asset: t.asset || t.Asset || 'Unknown'
         })).filter(t => !isNaN(t.timestamp.getTime()) && !isNaN(t.pl))
             .sort((a, b) => a.timestamp - b.timestamp);
-        
+
         // Calculate additional metrics
         this.trades.forEach(t => {
             t.isLoss = t.pl < 0;
@@ -37,15 +37,15 @@ class BiasDetector {
         // Calculate time differences
         const timeDiffs = [];
         for (let i = 1; i < this.trades.length; i++) {
-            const diff = (this.trades[i].timestamp - this.trades[i-1].timestamp) / (1000 * 60); // minutes
+            const diff = (this.trades[i].timestamp - this.trades[i - 1].timestamp) / (1000 * 60); // minutes
             if (diff > 0) {
                 timeDiffs.push(diff);
                 this.trades[i].timeSincePrev = diff;
-                this.trades[i].prevPL = this.trades[i-1].pl;
+                this.trades[i].prevPL = this.trades[i - 1].pl;
             }
         }
-        const avgTimeBetween = timeDiffs.length > 0 
-            ? timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length 
+        const avgTimeBetween = timeDiffs.length > 0
+            ? timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length
             : 0;
 
         // Pattern 1: Rapid-fire trades (within 1 minute)
@@ -55,11 +55,11 @@ class BiasDetector {
         // Pattern 2: Increasing frequency after small gains/losses
         const avgTradeSize = Math.abs(this.trades.reduce((sum, t) => sum + Math.abs(t.pl), 0) / this.trades.length);
         const smallMoveThreshold = avgTradeSize * 0.02;
-        
-        const tradesAfterSmallMoves = this.trades.filter(t => 
+
+        const tradesAfterSmallMoves = this.trades.filter(t =>
             t.prevPL !== undefined && Math.abs(t.prevPL) <= smallMoveThreshold
         );
-        
+
         let frequencyIncreaseRatio = 1;
         if (tradesAfterSmallMoves.length > 0) {
             const avgTimeAfterSmall = tradesAfterSmallMoves.reduce((sum, t) => sum + (t.timeSincePrev || 0), 0) / tradesAfterSmallMoves.length;
@@ -283,14 +283,14 @@ class BiasDetector {
         // Pattern 2: Rapid re-entry into same asset after losing trade
         const sameAssetAfterLoss = afterLoss.filter(t => t.asset === t.prevAsset);
         const sameAssetRapid = sameAssetAfterLoss.filter(t => t.timeSincePrev < 30);
-        const rapidSameAssetPct = afterLoss.length > 0 
-            ? (sameAssetRapid.length / afterLoss.length) * 100 
+        const rapidSameAssetPct = afterLoss.length > 0
+            ? (sameAssetRapid.length / afterLoss.length) * 100
             : 0;
 
         // Pattern 3: Emotional clustering within minutes of significant negative P/L
         const emotionalCluster = afterLoss.filter(t => t.timeSincePrev < 15);
-        const emotionalClusterPct = afterLoss.length > 0 
-            ? (emotionalCluster.length / afterLoss.length) * 100 
+        const emotionalClusterPct = afterLoss.length > 0
+            ? (emotionalCluster.length / afterLoss.length) * 100
             : 0;
 
         // Pattern 4: Escalating risk after consecutive losses
@@ -474,8 +474,58 @@ class BiasDetector {
             largest_loss: Math.round(Math.min(...this.trades.map(t => t.pl)) * 100) / 100,
             win_rate: Math.round((wins.length / this.trades.length) * 1000) / 10,
             trading_days: uniqueDates,
-            unique_assets: uniqueAssets
+            unique_assets: uniqueAssets,
+            human_tax: this.calculateHumanTax(),
+            prosperity_projection: this.calculateProsperityProjection()
         };
+    }
+
+    calculateHumanTax() {
+        // Human Tax = Sum of losses from biased trades
+        // We identify biased trades as those contributing to detected patterns
+        let humanTax = 0;
+
+        // 1. Overtrading: Trades after the daily limit (e.g. > 5) or rapid fire
+        // 2. Revenge Trading: Trades within 15 mins of a loss
+
+        // Group by day for daily limit check
+        const tradesByDate = {};
+        this.trades.forEach(t => {
+            if (!tradesByDate[t.date]) tradesByDate[t.date] = [];
+            tradesByDate[t.date].push(t);
+        });
+
+        this.trades.forEach((t, index) => {
+            if (t.pl >= 0) return; // Only count losses as "tax" (missed opportunity cost is harder to quantify)
+
+            let isBiased = false;
+
+            // Check Overtrading (Daily limit > 5)
+            const dailyTrades = tradesByDate[t.date];
+            const dailyIndex = dailyTrades.indexOf(t);
+            if (dailyIndex >= 5) isBiased = true;
+
+            // Check Rapid Fire (< 1 min from prev)
+            if (t.timeSincePrev !== undefined && t.timeSincePrev < 1) isBiased = true;
+
+            // Check Revenge Trading (within 15 mins of loss)
+            if (t.timeSincePrev !== undefined && t.timeSincePrev < 15 && t.prevIsLoss) isBiased = true;
+
+            if (isBiased) {
+                humanTax += Math.abs(t.pl);
+            }
+        });
+
+        return Math.round(humanTax * 100) / 100;
+    }
+
+    calculateProsperityProjection() {
+        const tax = this.calculateHumanTax();
+        // 10-year projection at 7% annual return
+        const rate = 0.07;
+        const years = 10;
+        const projection = tax * Math.pow(1 + rate, years);
+        return Math.round(projection * 100) / 100;
     }
 
     _emptyResult(biasName) {

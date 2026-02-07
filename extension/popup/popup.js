@@ -1,7 +1,17 @@
 // Load saved preference
-chrome.storage.local.get(['enableOnAllSites'], (result) => {
+chrome.storage.local.get(['enableOnAllSites', 'tradeHistory'], (result) => {
     if (result.enableOnAllSites) {
         document.getElementById('enableAllSites').checked = true;
+    }
+    if (result.tradeHistory) {
+        displayLiveTrades(result.tradeHistory);
+    }
+});
+
+// Listen for storage changes to update live trades in real-time
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.tradeHistory) {
+        displayLiveTrades(changes.tradeHistory.newValue);
     }
 });
 
@@ -10,20 +20,26 @@ document.getElementById('enableAllSites').addEventListener('change', (e) => {
 
     // Notify content script to show/hide panel
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        chrome.tabs.sendMessage(tabs[0].id, {
-            action: 'togglePanel',
-            enabled: e.target.checked
-        });
+        if (tabs[0]) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+                action: 'togglePanel',
+                enabled: e.target.checked
+            });
+        }
     });
 });
 
 document.getElementById('openTradingSite').addEventListener('click', () => {
-    // Open a popular trading platform
     chrome.tabs.create({ url: 'https://www.tradingview.com' });
 });
 
 document.getElementById('uploadCSV').addEventListener('click', () => {
     document.getElementById('fileInput').click();
+});
+
+document.getElementById('clearHistory').addEventListener('click', () => {
+    chrome.storage.local.set({ tradeHistory: [] });
+    // UI update handled by storage listener
 });
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
@@ -35,13 +51,42 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
             const trades = parseCSV(csv);
 
             chrome.storage.local.set({ trades: trades }, () => {
-                // chrome.tabs.create({ url: 'https://www.tradingview.com' }); // Optional: don't auto-open for now
                 fetchRecommendations(trades);
             });
         };
         reader.readAsText(file);
     }
 });
+
+function displayLiveTrades(trades) {
+    const container = document.getElementById('tradeList');
+    if (!trades || trades.length === 0) {
+        container.innerHTML = '<p style="color: #787b86; font-style: italic;">Waiting for live trades...</p>';
+        return;
+    }
+
+    // Sort by timestamp descending (newest first)
+    // Assuming Timestamp is ISO string
+    const sortedTrades = [...trades].sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+
+    let html = '';
+    sortedTrades.forEach(trade => {
+        const actionColor = trade['Buy/sell'].toLowerCase() === 'buy' ? '#2ed573' : '#ff4757';
+        const date = new Date(trade.Timestamp).toLocaleTimeString();
+
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div>
+                    <span style="font-weight: bold; color: ${actionColor}; margin-right: 5px;">${trade['Buy/sell'].toUpperCase()}</span>
+                    <span style="color: #fff;">${trade.Asset}</span>
+                </div>
+                <div style="font-size: 11px; color: #787b86;">${date}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
 
 function parseCSV(csv) {
     const lines = csv.split('\n').filter(line => line.trim());
@@ -83,7 +128,8 @@ async function fetchRecommendations(trades) {
 
     try {
         console.log('Fetching recommendations for', trades.length, 'trades...');
-        const response = await fetch('http://127.0.0.1:5001/api/analyze', {
+        // Correct endpoint is /api/analyze-csv
+        const response = await fetch('http://127.0.0.1:5001/api/analyze-csv', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ trades: trades })
@@ -91,7 +137,25 @@ async function fetchRecommendations(trades) {
 
         const data = await response.json();
 
-        if (data.recommendations && data.recommendations.length > 0) {
+        if (data.error) {
+            console.error('Gemini API Error:', data.error);
+            contentDiv.innerHTML = `<p style="color: #ff4757;">AI Coach Error: ${data.error}</p>`;
+            return;
+        }
+
+        // Save analysis to storage for background.js to use (Discipline Score)
+        chrome.storage.local.set({ geminiAnalysis: data });
+
+        // Handle new response format (coaching_insight vs recommendations)
+        if (data.coaching_insight) {
+            // Convert single insight to recommendations format for display
+            const recs = [{
+                priority: 'High',
+                bias: data.primary_bias || 'General Insight',
+                recommendation: data.coaching_insight
+            }];
+            displayRecommendations(recs);
+        } else if (data.recommendations && data.recommendations.length > 0) {
             displayRecommendations(data.recommendations);
         } else {
             contentDiv.innerHTML = '<p>No specific recommendations found.</p>';

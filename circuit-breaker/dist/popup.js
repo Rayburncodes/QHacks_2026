@@ -34,6 +34,7 @@
   var fp = null;
   var settings = null;
   var loading = true;
+  var importing = false;
   var importStatus = null;
 
   /* ── Constants ────────────────────────────────────────── */
@@ -134,6 +135,8 @@
       return;
     }
 
+    /* Import status is now shown inline via buildImportExport, not as blocking overlay */
+
     if (currentTab === "dashboard") renderDashboard(root);
     else renderSettings(root);
   }
@@ -163,15 +166,10 @@
       container.appendChild(
         h("div", { className: "cb-empty" },
           h("p", null, "No trades recorded yet."),
-          h("p", { className: "cb-hint" }, "Import your own CSV, use the demo page, or seed sample data.")
+          h("p", { className: "cb-hint" }, "Import your own CSV to get started.")
         )
       );
       container.appendChild(buildImportExport());
-      container.appendChild(
-        h("div", { className: "cb-seed-actions" },
-          h("button", { className: "cb-btn-gold", onClick: seedData }, "Seed Demo Data")
-        )
-      );
       return;
     }
 
@@ -182,7 +180,6 @@
     container.appendChild(buildImportExport());
     container.appendChild(
       h("div", { className: "cb-seed-actions" },
-        h("button", { className: "cb-btn-sm", onClick: seedData }, "Seed More Data"),
         h("button", { className: "cb-btn-sm cb-btn-danger", onClick: clearData }, "Clear All Data")
       )
     );
@@ -203,10 +200,10 @@
     ring.className = "cb-score-ring";
     ring.innerHTML =
       '<svg width="90" height="90">' +
-        '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>' +
-        '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="8" ' +
-          'stroke-dasharray="' + c + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" ' +
-          'transform="rotate(-90 45 45)"/>' +
+      '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/>' +
+      '<circle cx="45" cy="45" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="8" ' +
+      'stroke-dasharray="' + c + '" stroke-dashoffset="' + offset + '" stroke-linecap="round" ' +
+      'transform="rotate(-90 45 45)"/>' +
       '</svg>' +
       '<div class="cb-score-number" style="color:' + color + '">' + score + '</div>';
 
@@ -230,21 +227,35 @@
   function buildBiasBreakdown(trades) {
     if (!trades || trades.length === 0) return document.createDocumentFragment();
 
-    var counts = { clean: 0 };
-    for (var i = 0; i < trades.length; i++) {
-      var t = trades[i];
-      if (!t.flags || t.flags.length === 0) { counts.clean++; continue; }
-      for (var j = 0; j < t.flags.length; j++) {
-        var f = t.flags[j];
-        counts[f] = (counts[f] || 0) + 1;
+    var entries = [];
+    var maxVal = 0;
+    var periodLabel = "All Time"; // Default
+
+    // CHECK FOR GEMINI ANALYSIS FIRST
+    if (stats && stats.geminiAnalysis && stats.geminiAnalysis.biases) {
+      periodLabel = "AI Analysis";
+      var biases = stats.geminiAnalysis.biases;
+      entries = Object.entries(biases)
+        .filter(function (e) { return e[1] > 0; })
+        .sort(function (a, b) { return b[1] - a[1]; });
+      maxVal = 100; // Scores are 0-100
+    } else {
+      // Fallback to local trade counts
+      var counts = { clean: 0 };
+      for (var i = 0; i < trades.length; i++) {
+        var t = trades[i];
+        if (!t.flags || t.flags.length === 0) { counts.clean++; continue; }
+        for (var j = 0; j < t.flags.length; j++) {
+          var f = t.flags[j];
+          counts[f] = (counts[f] || 0) + 1;
+        }
       }
+      entries = Object.entries(counts).filter(function (e) { return e[1] > 0; })
+        .sort(function (a, b) { return b[1] - a[1]; });
+      maxVal = Math.max.apply(null, entries.map(function (e) { return e[1]; }));
     }
 
-    var entries = Object.entries(counts).filter(function (e) { return e[1] > 0; })
-      .sort(function (a, b) { return b[1] - a[1]; });
     if (entries.length === 0) return document.createDocumentFragment();
-
-    var maxVal = Math.max.apply(null, entries.map(function (e) { return e[1]; }));
     var totalTrades = trades.length;
 
     var section = h("div", { className: "cb-section" },
@@ -262,8 +273,17 @@
     for (var k = 0; k < entries.length; k++) {
       (function (key, val) {
         var pct = (val / maxVal) * 100;
-        var pctOfTotal = ((val / totalTrades) * 100).toFixed(1);
         var color = COLORS[key] || "#555";
+        var tooltipText = "";
+
+        if (periodLabel === "AI Analysis") {
+          // AI Score display
+          tooltipText = (LABELS[key] || key) + ": Score " + val + "/100";
+        } else {
+          // Trade Count display
+          var pctOfTotal = ((val / totalTrades) * 100).toFixed(1);
+          tooltipText = (LABELS[key] || key) + ": " + val + " trades (" + pctOfTotal + "% of total)";
+        }
 
         var row = document.createElement("div");
         row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:default;";
@@ -284,7 +304,7 @@
 
         row.addEventListener("mouseenter", function (e) {
           bar.style.opacity = "0.8";
-          barTip.textContent = (LABELS[key] || key) + ": " + val + " trades (" + pctOfTotal + "% of total)";
+          barTip.textContent = tooltipText;
           barTip.style.opacity = "1";
           var rect = chart.getBoundingClientRect();
           var rowRect = row.getBoundingClientRect();
@@ -378,19 +398,19 @@
 
     wrap.innerHTML =
       '<svg width="' + W + '" height="' + HH + '" style="display:block">' +
-        gridLines +
-        '<line x1="' + padL + '" y1="' + zeroY + '" x2="' + (W - padR) + '" y2="' + zeroY + '" stroke="rgba(255,255,255,.15)" stroke-dasharray="3 3"/>' +
-        '<path d="' + actualPath + '" fill="none" stroke="#c5a55a" stroke-width="2"/>' +
-        '<path d="' + ghostPath + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-dasharray="5 5"/>' +
-        crosshair +
-        hoverElements +
+      gridLines +
+      '<line x1="' + padL + '" y1="' + zeroY + '" x2="' + (W - padR) + '" y2="' + zeroY + '" stroke="rgba(255,255,255,.15)" stroke-dasharray="3 3"/>' +
+      '<path d="' + actualPath + '" fill="none" stroke="#c5a55a" stroke-width="2"/>' +
+      '<path d="' + ghostPath + '" fill="none" stroke="#27ae60" stroke-width="2" stroke-dasharray="5 5"/>' +
+      crosshair +
+      hoverElements +
       '</svg>' +
       '<div id="cb-chart-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .12s;' +
-        'background:#152238;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:8px 12px;' +
-        'font-size:11px;color:#e8e6e3;white-space:nowrap;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.5);"></div>' +
+      'background:#152238;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:8px 12px;' +
+      'font-size:11px;color:#e8e6e3;white-space:nowrap;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.5);"></div>' +
       '<div style="display:flex;gap:16px;justify-content:center;padding:6px 0">' +
-        '<span style="font-size:11px;color:#c5a55a">\u2501 Actual P/L</span>' +
-        '<span style="font-size:11px;color:#27ae60">\u254C Ghost (no bias)</span>' +
+      '<span style="font-size:11px;color:#c5a55a">\u2501 Actual P/L</span>' +
+      '<span style="font-size:11px;color:#27ae60">\u254C Ghost (no bias)</span>' +
       '</div>';
 
     /* Wire up hover interactions after DOM insertion */
@@ -543,7 +563,7 @@
   /* ── Import / Export ──────────────────────────────────── */
   function buildImportExport() {
     var section = h("div", { className: "cb-section" },
-      h("div", { className: "cb-section-title" }, "Import / Export Data")
+      h("div", { className: "cb-section-title" }, "Import Data")
     );
 
     section.appendChild(
@@ -553,15 +573,15 @@
     );
 
     if (importStatus) {
-      section.appendChild(h("div", { className: "cb-import-status" }, importStatus));
+      var statusEl = h("div", { className: "cb-import-status" });
+      if (importing) {
+        var spinner = document.createElement("span");
+        spinner.className = "cb-inline-spinner";
+        statusEl.appendChild(spinner);
+      }
+      statusEl.appendChild(document.createTextNode(" " + importStatus));
+      section.appendChild(statusEl);
     }
-
-    section.appendChild(
-      h("div", { className: "cb-export-row" },
-        h("button", { className: "cb-btn-sm", onClick: exportBasic }, "Basic CSV"),
-        h("button", { className: "cb-btn-sm", onClick: exportAdvanced }, "Advanced CSV")
-      )
-    );
 
     return section;
   }
@@ -590,30 +610,66 @@
     var input = document.createElement("input");
     input.type = "file";
     input.accept = ".csv,text/csv";
-    input.onchange = async function (e) {
+    input.onchange = function (e) {
       var file = e.target.files && e.target.files[0];
       if (!file) return;
-      importStatus = "Reading file\u2026";
+
+      importing = true;
+      importStatus = "Reading file…";
       render();
-      var text = await file.text();
-      importStatus = "Analyzing " + (text.split("\n").length - 1) + " trades\u2026";
-      render();
-      try {
-        var result = await msg({ type: "IMPORT_CSV", payload: { csvText: text } });
+
+      // Read file and process
+      file.text().then(function (text) {
+        var lineCount = text.split("\n").length - 1;
+        importStatus = "Analyzing " + lineCount + " trades…";
+        render();
+
+        return msg({ type: "IMPORT_CSV", payload: { csvText: text } });
+      }).then(function (result) {
         if (!result) {
-          importStatus = "Error: No response from background. Try a smaller CSV or reload the extension.";
+          importStatus = "Error: No response. Try a smaller CSV.";
+          importing = false;
         } else if (result.error) {
           importStatus = "Error: " + result.error;
+          importing = false;
         } else {
-          importStatus = "Imported " + result.imported + " trades (" + (result.flagged || 0) + " flagged)" + (result.skipped > 0 ? ", " + result.skipped + " skipped" : "");
-          refresh();
+          importStatus = "✅ Imported " + result.imported + " trades. Analyzing with AI...";
+          render();
+
+          refresh().then(function () {
+            return msg({ type: "ANALYZE_GEMINI" });
+          }).then(function (aiResult) {
+            importing = false;
+
+            if (aiResult && aiResult.success) {
+              importStatus = "✨ AI Analysis Complete!";
+              refresh();
+            } else {
+              var err = aiResult && aiResult.error ? aiResult.error : "AI analysis failed";
+              importStatus = "Note: Local analysis done. AI error: " + err;
+            }
+            render();
+
+            setTimeout(function () {
+              importStatus = null;
+              render();
+            }, 5000);
+          });
           return;
         }
-      } catch (err) {
+        render();
+
+        setTimeout(function () {
+          importStatus = null;
+          render();
+        }, 5000);
+
+      }).catch(function (err) {
+        importing = false;
         importStatus = "Error: " + (err.message || "Import failed");
-      }
-      render();
-      setTimeout(function () { importStatus = null; render(); }, 8000);
+        render();
+        setTimeout(function () { importStatus = null; render(); }, 8000);
+      });
     };
     input.click();
   }

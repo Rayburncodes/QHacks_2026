@@ -1,0 +1,42 @@
+#zentrade-panel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    width: 300px;
+    background: #1e222d;
+    color: #d1d4dc;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+    z-index: 999999;
+    display: flex;
+    flex-direction: column;
+    font-family: system-ui, sans-serif;
+}
+
+.header {
+    padding: 15px;
+    border-bottom: 1px solid #363a45;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+}
+
+#close-panel {
+    background: none;
+    border: none;
+    color: #787b86;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.content {
+    padding: 15px;
+    flex: 1;
+    overflow-y: auto;
+}

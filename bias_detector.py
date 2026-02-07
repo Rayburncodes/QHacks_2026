@@ -1,5 +1,6 @@
 
 
+
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -81,17 +82,17 @@ class BiasDetector:
         # Score calculation based on harmful patterns
         score = 0
         
-        # Pattern 1: Excessively high trades per day (threshold: >50/day average or >80/day max)
-        if avg_trades_per_day > 50:
-            score += min(20, (avg_trades_per_day / 50) * 8)
-        if max_trades_per_day > 80:
-            score += min(15, (max_trades_per_day / 80) * 8)
+        # Pattern 1: Excessively high trades per day (threshold: >10/day average or >25/day max for manual traders)
+        if avg_trades_per_day > 10:
+            score += min(25, (avg_trades_per_day / 10) * 10)
+        if max_trades_per_day > 25:
+            score += min(20, (max_trades_per_day / 25) * 10)
         
-        # Pattern 2: Rapid-fire trades (>60% within 1 minute)
-        if rapid_trade_pct > 60:
-            score += min(20, (rapid_trade_pct / 60) * 10)
-        elif rapid_trade_pct > 40:
-            score += min(10, (rapid_trade_pct / 40) * 5)
+        # Pattern 2: Rapid-fire trades (>20% within 1 minute)
+        if rapid_trade_pct > 20:
+            score += min(25, (rapid_trade_pct / 20) * 10)
+        elif rapid_trade_pct > 10:
+            score += min(15, (rapid_trade_pct / 10) * 5)
         
         # Pattern 3: Increasing frequency after small moves (ratio > 3.0 indicates faster trading)
         if frequency_increase_ratio > 3.0:
@@ -471,16 +472,76 @@ class BiasDetector:
             'largest_loss': round(self.df['P/L'].min(), 2),
             'win_rate': round((self.df['Is_Win'].sum() / len(self.df)) * 100, 1),
             'trading_days': len(self.df['Date'].unique()),
-            'unique_assets': int(self.df['Asset'].nunique())
+            'unique_assets': int(self.df['Asset'].nunique()),
+            'human_tax': self.calculate_human_tax(),
+            'prosperity_projection': self.calculate_prosperity_projection()
         }
+
+    def calculate_human_tax(self):
+        """
+        Calculate 'Human Tax': Total losses from likely biased trades.
+        Biased trades:
+        1. Overtrading: Trades beyond 5 per day.
+        2. Rapid Fire: Trades within 1 minute of previous.
+        3. Revenge Trading: Trades within 15 minutes of a loss.
+        """
+        human_tax = 0.0
+        
+        # Prepare data
+        df = self.df.copy()
+        df['Timestamp'] = pd.to_datetime(df['Timestamp'])
+        df = df.sort_values('Timestamp')
+        df['Date'] = df['Timestamp'].dt.date
+        
+        # Calculate time diffs and previous outcomes
+        df['TimeDiff'] = df['Timestamp'].diff().dt.total_seconds() / 60.0
+        df['PrevPL'] = df['P/L'].shift(1)
+        df['PrevIsLoss'] = df['PrevPL'] < 0
+        
+        # Daily trade count
+        trade_counts = df.groupby('Date').cumcount() + 1
+        df['DailyTradeNum'] = trade_counts.values # Assign back correctly
+
+        for index, row in df.iterrows():
+            if row['P/L'] >= 0:
+                continue # Only count losses
+            
+            is_biased = False
+            
+            # 1. Overtrading (> 8 trades/day) - Adjusted to be slightly more lenient than 5
+            if row['DailyTradeNum'] > 8:
+                is_biased = True
+                
+            # 2. Rapid Fire (< 1 min)
+            if pd.notna(row['TimeDiff']) and row['TimeDiff'] < 1.0:
+                is_biased = True
+                
+            # 3. Revenge Trading (< 15 mins after loss)
+            if pd.notna(row['TimeDiff']) and row['TimeDiff'] < 15.0 and row['PrevIsLoss']:
+                is_biased = True
+                
+            if is_biased:
+                human_tax += abs(row['P/L'])
+                
+        return round(human_tax, 2)
+
+    def calculate_prosperity_projection(self):
+        """
+        Project 10-year growth of the Human Tax at 7% annual return.
+        """
+        tax = self.calculate_human_tax()
+        rate = 0.07
+        years = 10
+        projection = tax * ((1 + rate) ** years)
+        return round(projection, 2)
     
     def _get_overtrading_description(self, severity, avg_trades, rapid_pct, cost_ratio):
         if severity == 'High':
-            return f"You're averaging {avg_trades:.1f} trades per day with {rapid_pct:.1f}% occurring within 1 minute. Transaction costs represent {cost_ratio:.1f}% of your net returns. This suggests impulsive, strategy-less trading that increases costs and emotional stress."
+            return f"You're averaging {avg_trades:.1f} trades per day with {rapid_pct:.1f}% occurring within 1 minute. Transaction costs represent {cost_ratio:.1f}% of your net returns. This suggests impulsive, strategy-less trading."
         elif severity == 'Moderate':
-            return f"Your trading frequency ({avg_trades:.1f} trades/day) is elevated with {rapid_pct:.1f}% rapid-fire trades. Consider whether each trade aligns with your strategy before executing."
+            return f"Your trading frequency ({avg_trades:.1f} trades/day) is elevated (>10/day) with {rapid_pct:.1f}% rapid-fire trades. Consider filtering for only A+ setups."
         else:
-            return "Your trading frequency appears reasonable, but monitor for impulsive trades and transaction costs."
+            return "Your trading frequency appears reasonable (<10/day), but continue to monitor for impulsive trades."
     
     def _get_loss_aversion_description(self, severity, rr_ratio, loss_win_ratio, cutting_winners):
         if severity == 'High':

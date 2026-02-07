@@ -50,6 +50,24 @@
         .btn-secondary:hover {
             background: #404550;
         }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e222d;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #363a45;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #404550;
+        }
     </style>
 </head>
 
@@ -67,6 +85,18 @@
     <input type="file" id="fileInput" accept=".csv" style="display: none;">
     <div style="margin-top: 10px; font-size: 11px; color: #787b86;">
         Works on: TradingView, Binance, Coinbase, Robinhood, eToro, and more!
+    </div>
+
+    <div id="liveTrades" style="margin-top: 15px; border-top: 1px solid #363a45; padding-top: 10px;">
+        <h3
+            style="color: #667eea; font-size: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            📡 Live Trades
+            <button id="clearHistory"
+                style="background: none; border: none; color: #787b86; font-size: 10px; cursor: pointer; text-decoration: underline;">Clear</button>
+        </h3>
+        <div id="tradeList" style="font-size: 13px; color: #d1d4dc; max-height: 150px; overflow-y: auto;">
+            <p style="color: #787b86; font-style: italic;">Waiting for live trades...</p>
+        </div>
     </div>
 
     <div id="recommendations"

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "National Bank Bias Detector",
+  "name": "Heuristx",
   "version": "1.0.0",
   "description": "Detect harmful psychological patterns in your trading behavior on any trading platform",
   "permissions": [
@@ -10,13 +10,22 @@
   ],
   "host_permissions": [
     "http://*/*",
-    "https://*/*"
+    "https://*/*",
+    "https://www.tradingview.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["lib/bias-detector.js", "content/content.js"],
-      "css": ["content/styles.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "lib/bias-detector.js",
+        "content/human-tax-widget.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/styles.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -39,8 +48,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["content/panel.html", "content/panel.css"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "content/panel.html",
+        "content/panel.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

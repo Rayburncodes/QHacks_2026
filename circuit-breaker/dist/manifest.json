@@ -17,8 +17,12 @@
       "matches": [
         "<all_urls>"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
@@ -38,8 +42,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/heuristx_x.png"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/heuristx_x.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
