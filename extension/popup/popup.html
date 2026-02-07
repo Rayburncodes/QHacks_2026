@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 350px;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e222d;
+            color: #d1d4dc;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 10px 0;
+            color: #fff;
+        }
+
+        p {
+            font-size: 14px;
+            color: #787b86;
+            margin: 10px 0;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #2962ff;
+            color: #fff;
+        }
+
+        .btn:hover {
+            background: #1e53e5;
+        }
+
+        .btn-secondary {
+            background: #363a45;
+            color: #d1d4dc;
+        }
+
+        .btn-secondary:hover {
+            background: #404550;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🏦 Bias Detector</h1>
+    <p>Detect harmful psychological patterns in your trading behavior on any trading platform.</p>
+    <div style="margin: 10px 0;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" id="enableAllSites" style="margin-right: 8px;">
+            <span style="font-size: 12px;">Enable on all websites</span>
+        </label>
+    </div>
+    <button class="btn" id="openTradingSite">Open Trading Platform</button>
+    <button class="btn btn-secondary" id="uploadCSV">Upload CSV File</button>
+    <input type="file" id="fileInput" accept=".csv" style="display: none;">
+    <div style="margin-top: 10px; font-size: 11px; color: #787b86;">
+        Works on: TradingView, Binance, Coinbase, Robinhood, eToro, and more!
+    </div>
+
+    <div id="recommendations"
+        style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #363a45;">
+        <h3 style="color: #667eea; font-size: 14px; margin-bottom: 10px;">✨ Gemini AI Coach</h3>
+        <div id="recommendationsContent" style="font-size: 13px; color: #d1d4dc;"></div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

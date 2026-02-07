@@ -1,0 +1,320 @@
+/* ─── Circuit Breaker — Overlay "Golden Age" Styles ────── */
+
+#cb-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10, 22, 40, 0.88);
+  backdrop-filter: blur(6px);
+  z-index: 2147483647;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: #e8e6e3;
+}
+#cb-overlay.cb-visible { opacity: 1; }
+
+/* ── Modal ───────────────────────────────────────────────── */
+.cb-modal {
+  background: linear-gradient(135deg, #0f1d32, #152238);
+  border: 1px solid rgba(197,165,90,.3);
+  border-radius: 16px;
+  width: 500px; max-width: 92vw; max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0,0,0,.55), 0 0 48px rgba(197,165,90,.08);
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.cb-header { text-align: center; padding: 28px 28px 18px; border-bottom: 1px solid rgba(197,165,90,.18); }
+.cb-icon   { font-size: 40px; margin-bottom: 8px; }
+.cb-title  { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 24px; font-weight: 700; color: #c5a55a; margin: 0 0 4px; letter-spacing: .5px; }
+.cb-subtitle { font-size: 13px; color: #8b8d93; margin: 0; }
+
+/* ── Body ────────────────────────────────────────────────── */
+.cb-body { padding: 22px 28px; }
+
+/* ── Bias Cards ──────────────────────────────────────────── */
+.cb-bias-card { background: rgba(255,255,255,.04); border-radius: 10px; padding: 16px; margin-bottom: 14px; border-left: 3px solid #8b8d93; }
+.cb-severity-high     { border-left-color: #e74c3c; background: rgba(231,76,60,.06); }
+.cb-severity-moderate  { border-left-color: #f39c12; background: rgba(243,156,18,.06); }
+.cb-severity-low       { border-left-color: #27ae60; }
+
+.cb-bias-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cb-bias-icon   { font-size: 20px; }
+.cb-bias-label  { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-weight: 600; font-size: 15px; color: #e8e6e3; flex: 1; }
+.cb-bias-severity { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
+.cb-severity-high .cb-bias-severity     { background: rgba(231,76,60,.2);  color: #e74c3c; }
+.cb-severity-moderate .cb-bias-severity  { background: rgba(243,156,18,.2); color: #f39c12; }
+.cb-severity-low .cb-bias-severity       { background: rgba(39,174,96,.2);  color: #27ae60; }
+
+.cb-bias-desc    { font-size: 13px; line-height: 1.55; color: #a0a2a8; margin: 0 0 8px; }
+.cb-bias-factors { list-style: none; padding: 0; margin: 0 0 10px; }
+.cb-bias-factors li { font-size: 12px; color: #8b8d93; padding: 3px 0 3px 18px; position: relative; }
+.cb-bias-factors li::before { content: '→'; position: absolute; left: 0; color: #c5a55a; }
+
+.cb-bias-score-bar  { height: 4px; background: rgba(255,255,255,.1); border-radius: 2px; overflow: hidden; }
+.cb-bias-score-fill { height: 100%; background: linear-gradient(90deg, #c5a55a, #d4af37); border-radius: 2px; transition: width .6s ease; }
+
+/* ── Cost Section ────────────────────────────────────────── */
+.cb-cost-section { background: rgba(197,165,90,.06); border: 1px solid rgba(197,165,90,.15); border-radius: 10px; padding: 18px; margin-top: 18px; }
+.cb-cost-row     { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+.cb-cost-label   { font-size: 13px; color: #a0a2a8; }
+.cb-cost-value   { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 22px; font-weight: 700; color: #c5a55a; }
+.cb-cost-mtd .cb-cost-value { font-size: 17px; color: #e8c872; }
+
+.cb-cost-breakdown { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(197,165,90,.1); }
+.cb-cost-breakdown-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #8b8d93; margin: 0 0 8px; }
+.cb-cost-breakdown ul { list-style: none; padding: 0; margin: 0; }
+.cb-cost-breakdown li { font-size: 12px; color: #a0a2a8; padding: 2px 0; }
+
+/* ── Emotion Check-in ────────────────────────────────────── */
+.cb-emotion-section { margin-top: 22px; text-align: center; }
+.cb-emotion-prompt  { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 14px; font-weight: 600; color: #c5a55a; margin: 0 0 12px; }
+.cb-emotion-buttons { display: flex; gap: 10px; justify-content: center; }
+.cb-emotion-btn {
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px; padding: 10px 18px; color: #e8e6e3; font-size: 13px;
+  cursor: pointer; transition: all .2s;
+}
+.cb-emotion-btn:hover   { background: rgba(197,165,90,.1); border-color: rgba(197,165,90,.3); }
+.cb-emotion-btn.cb-selected { background: rgba(197,165,90,.18); border-color: #c5a55a; color: #c5a55a; }
+
+/* ── Actions ─────────────────────────────────────────────── */
+.cb-actions {
+  display: flex; gap: 10px; padding: 22px 28px;
+  border-top: 1px solid rgba(197,165,90,.15);
+}
+.cb-btn {
+  flex: 1; padding: 13px 16px; border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
+}
+.cb-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.cb-btn-proceed  { background: rgba(231,76,60,.15);  color: #e74c3c; border: 1px solid rgba(231,76,60,.3); }
+.cb-btn-proceed:hover:not(:disabled) { background: rgba(231,76,60,.25); }
+.cb-btn-cooloff  { background: rgba(52,152,219,.15); color: #3498db; border: 1px solid rgba(52,152,219,.3); }
+.cb-btn-cooloff:hover { background: rgba(52,152,219,.25); }
+.cb-btn-limit    { background: rgba(197,165,90,.15); color: #c5a55a; border: 1px solid rgba(197,165,90,.3); }
+.cb-btn-limit:hover   { background: rgba(197,165,90,.25); }
+.cb-btn-secondary { background: rgba(255,255,255,.08); color: #a0a2a8; border: 1px solid rgba(255,255,255,.15); }
+.cb-btn-secondary:hover { background: rgba(255,255,255,.12); }
+
+.cb-btn-confirm-limit { width: 100%; background: rgba(197,165,90,.2); color: #c5a55a; border: 1px solid rgba(197,165,90,.3); }
+
+/* ── Limit Panel ─────────────────────────────────────────── */
+.cb-limit-panel { padding: 18px 28px; border-top: 1px solid rgba(197,165,90,.1); }
+.cb-limit-field { margin-bottom: 14px; }
+.cb-limit-field label { display: block; font-size: 12px; color: #8b8d93; margin-bottom: 4px; }
+.cb-limit-field input {
+  width: 100%; padding: 9px 12px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 6px; color: #e8e6e3; font-size: 14px; box-sizing: border-box;
+}
+.cb-limit-field input:focus { outline: none; border-color: #c5a55a; }
+
+/* ── Cooldown ────────────────────────────────────────────── */
+.cb-cooldown-msg    { font-size: 16px; color: #e8e6e3; text-align: center; margin: 0 0 8px; }
+.cb-cooldown-reason { font-size: 13px; color: #8b8d93; text-align: center; margin: 0 0 28px; }
+.cb-timer           { text-align: center; }
+.cb-timer-value     { display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; font-size: 52px; font-weight: 700; color: #c5a55a; }
+.cb-timer-label     { font-size: 13px; color: #8b8d93; }
+
+/* ── Warning ─────────────────────────────────────────────── */
+.cb-limit-warning {
+  background: rgba(243,156,18,.1); border: 1px solid rgba(243,156,18,.3);
+  border-radius: 8px; padding: 12px; margin-bottom: 16px;
+  font-size: 13px; color: #f39c12; text-align: center;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+.cb-modal::-webkit-scrollbar       { width: 6px; }
+.cb-modal::-webkit-scrollbar-track { background: transparent; }
+.cb-modal::-webkit-scrollbar-thumb { background: rgba(197,165,90,.3); border-radius: 3px; }
+
+/* ── Floating Action Button ─────────────────────────────── */
+#cb-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0f1d32, #152238);
+  border: 2px solid rgba(197,165,90,.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2147483646;
+  box-shadow: 0 4px 16px rgba(0,0,0,.35), 0 0 24px rgba(197,165,90,.08);
+  transition: all .2s ease;
+  user-select: none;
+  overflow: hidden;
+}
+#cb-fab:hover {
+  transform: scale(1.08);
+  border-color: rgba(197,165,90,.7);
+  box-shadow: 0 6px 24px rgba(0,0,0,.4), 0 0 32px rgba(197,165,90,.15);
+}
+#cb-fab.cb-fab-active {
+  background: linear-gradient(135deg, #c5a55a, #d4af37);
+  border-color: #d4af37;
+}
+
+/* ── Mini Panel ─────────────────────────────────────────── */
+#cb-mini-panel {
+  position: fixed;
+  bottom: 84px;
+  right: 24px;
+  width: 300px;
+  max-height: 480px;
+  overflow-y: auto;
+  background: linear-gradient(135deg, #0f1d32, #152238);
+  border: 1px solid rgba(197,165,90,.25);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.5), 0 0 32px rgba(197,165,90,.06);
+  z-index: 2147483646;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  color: #e8e6e3;
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(12px) scale(0.95);
+  pointer-events: none;
+  transition: all .25s ease;
+}
+#cb-mini-panel.cb-mini-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* ── Mini Panel Scrollbar ──── */
+#cb-mini-panel::-webkit-scrollbar       { width: 5px; }
+#cb-mini-panel::-webkit-scrollbar-track { background: transparent; }
+#cb-mini-panel::-webkit-scrollbar-thumb { background: rgba(197,165,90,.25); border-radius: 3px; }
+
+/* ── Mini Panel Sections ───── */
+.cb-mini-header {
+  text-align: center;
+  padding: 18px 16px 10px;
+  border-bottom: 1px solid rgba(197,165,90,.15);
+}
+.cb-mini-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #c5a55a;
+  letter-spacing: .3px;
+}
+.cb-mini-subtitle {
+  font-size: 11px;
+  color: #8b8d93;
+  margin-top: 2px;
+}
+
+.cb-mini-score-section {
+  text-align: center;
+  padding: 16px 0 12px;
+}
+.cb-mini-score {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1;
+}
+.cb-mini-score-label {
+  font-size: 11px;
+  color: #8b8d93;
+  margin-top: 4px;
+}
+
+.cb-mini-stats {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.cb-mini-stat {
+  text-align: center;
+}
+.cb-mini-stat-num {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: #e8e6e3;
+}
+.cb-mini-stat-lbl {
+  display: block;
+  font-size: 10px;
+  color: #8b8d93;
+  margin-top: 2px;
+}
+
+.cb-mini-biases-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c5a55a;
+  padding: 12px 16px 6px;
+  letter-spacing: .3px;
+}
+.cb-mini-biases {
+  padding: 0 16px 10px;
+}
+.cb-mini-bias-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.cb-mini-bias-name {
+  font-size: 12px;
+  color: #a0a2a8;
+}
+.cb-mini-bias-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e74c3c;
+  background: rgba(231,76,60,.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.cb-mini-clean {
+  font-size: 12px;
+  color: #27ae60;
+  padding: 6px 0;
+}
+
+.cb-mini-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.cb-mini-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #c5a55a, #d4af37);
+  color: #0a1628;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s;
+  font-family: inherit;
+}
+.cb-mini-btn:hover { opacity: .85; }
+.cb-mini-btn-secondary {
+  background: rgba(255,255,255,.08);
+  color: #a0a2a8;
+  border: 1px solid rgba(255,255,255,.15);
+}
+.cb-mini-btn-secondary:hover {
+  background: rgba(255,255,255,.12);
+  color: #e8e6e3;
+}
+
+.cb-mini-loading, .cb-mini-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: #8b8d93;
+  font-size: 13px;
+}

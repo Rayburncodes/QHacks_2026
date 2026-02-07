@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Icons</title>
+</head>
+<body>
+    <canvas id="icon16" width="16" height="16"></canvas>
+    <canvas id="icon48" width="48" height="48"></canvas>
+    <canvas id="icon128" width="128" height="128"></canvas>
+    <script>
+        function createIcon(canvasId, size) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#2962ff';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Bank icon (simple representation)
+            ctx.fillStyle = '#fff';
+            ctx.font = `${size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🏦', size/2, size/2);
+            
+            // Download as PNG
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `icon${size}.png`;
+                a.click();
+            });
+        }
+        
+        // Create all icons
+        setTimeout(() => createIcon('icon16', 16), 100);
+        setTimeout(() => createIcon('icon48', 48), 200);
+        setTimeout(() => createIcon('icon128', 128), 300);
+    </script>
+</body>
+</html>
