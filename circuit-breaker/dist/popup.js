@@ -338,7 +338,7 @@
     /* Shared tooltip for bars */
     var barTip = document.createElement("div");
     barTip.style.cssText = "position:absolute;pointer-events:none;opacity:0;transition:opacity .15s;" +
-      "background:#152238;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:6px 10px;" +
+      "background:#000000;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:6px 10px;" +
       "font-size:11px;color:#e8e6e3;white-space:nowrap;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.4);";
     chart.appendChild(barTip);
 
@@ -478,7 +478,7 @@
       hoverElements +
       '</svg>' +
       '<div id="cb-chart-tip" style="position:absolute;pointer-events:none;opacity:0;transition:opacity .12s;' +
-      'background:#152238;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:8px 12px;' +
+      'background:#000000;border:1px solid rgba(197,165,90,.35);border-radius:6px;padding:8px 12px;' +
       'font-size:11px;color:#e8e6e3;white-space:nowrap;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.5);"></div>' +
       '<div style="display:flex;gap:16px;justify-content:center;padding:6px 0">' +
       '<span style="font-size:11px;color:#c5a55a">\u2501 Actual P/L</span>' +

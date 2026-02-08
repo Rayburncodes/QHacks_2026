@@ -2,7 +2,7 @@
 
 #cb-overlay {
   position: fixed; inset: 0;
-  background: rgba(10, 22, 40, 0.88);
+  background: rgba(0, 0, 0, 0.88);
   backdrop-filter: blur(6px);
   z-index: 2147483647;
   display: flex; align-items: center; justify-content: center;
@@ -14,7 +14,7 @@
 
 /* ── Modal ───────────────────────────────────────────────── */
 .cb-modal {
-  background: linear-gradient(135deg, #0f1d32, #152238);
+  background: linear-gradient(135deg, #000000, #1a1a1a);
   border: 1px solid rgba(197,165,90,.3);
   border-radius: 16px;
   width: 500px; max-width: 92vw; max-height: 88vh;
@@ -137,7 +137,7 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0f1d32, #152238);
+  background: linear-gradient(135deg, #000000, #1a1a1a);
   border: 2px solid rgba(197,165,90,.4);
   display: flex;
   align-items: center;
@@ -167,7 +167,7 @@
   width: 300px;
   max-height: 480px;
   overflow-y: auto;
-  background: linear-gradient(135deg, #0f1d32, #152238);
+  background: linear-gradient(135deg, #000000, #1a1a1a);
   border: 1px solid rgba(197,165,90,.25);
   border-radius: 14px;
   box-shadow: 0 16px 48px rgba(0,0,0,.5), 0 0 32px rgba(197,165,90,.06);
