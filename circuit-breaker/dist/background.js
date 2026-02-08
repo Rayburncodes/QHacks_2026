@@ -20,6 +20,11 @@
     OVERTRADING_FREQUENCY_MULTIPLIER: 5,
     OVERTRADING_BURST_COUNT: 15,
     OVERTRADING_BURST_WINDOW_MINUTES: 5,
+    OVERTRADING_TRADES_PER_BALANCE_PCT: 0.1, // 10% of balance in trades per day = excessive
+    OVERTRADING_ASSET_SWITCH_THRESHOLD: 5, // More than 5 different assets in short period
+    OVERTRADING_POST_LOSS_WINDOW_MINUTES: 60, // Window after large loss to detect revenge trading
+    OVERTRADING_POST_WIN_WINDOW_MINUTES: 30, // Window after large win to detect overconfidence
+    OVERTRADING_HOURLY_CLUSTER_THRESHOLD: 10, // More than 10 trades in a single hour
     /* Revenge Trading */
     REVENGE_SIZE_MULTIPLIER: 2,
     REVENGE_WINDOW_MINUTES: 30,
@@ -107,10 +112,14 @@
       );
       const currentRate = lastHour.length + 1;
       const ratio = avg > 0 ? currentRate / avg : currentRate > 3 ? 3 : 1;
+      
+      // Pattern 1: Frequency multiplier (existing)
       if (ratio > BIAS_THRESHOLDS.OVERTRADING_FREQUENCY_MULTIPLIER) {
         score += Math.min(30, ratio / BIAS_THRESHOLDS.OVERTRADING_FREQUENCY_MULTIPLIER * 12);
         factors.push(`Trading at ${ratio.toFixed(1)}\xD7 your usual rate this hour`);
       }
+      
+      // Pattern 2: Burst trading (existing)
       const burstMs = BIAS_THRESHOLDS.OVERTRADING_BURST_WINDOW_MINUTES * 6e4;
       const burst = this.trades.filter((t) => now - new Date(t.timestamp).getTime() < burstMs);
       if (burst.length + 1 > BIAS_THRESHOLDS.OVERTRADING_BURST_COUNT) {
@@ -119,6 +128,108 @@
           `${burst.length + 1} trades in the last ${BIAS_THRESHOLDS.OVERTRADING_BURST_WINDOW_MINUTES} min`
         );
       }
+      
+      // Pattern 3: Time-based clustering - trades per hour
+      if (lastHour.length + 1 > BIAS_THRESHOLDS.OVERTRADING_HOURLY_CLUSTER_THRESHOLD) {
+        score += 25;
+        factors.push(`${lastHour.length + 1} trades in the last hour — excessive clustering`);
+      }
+      
+      // Pattern 4: Excessive trades relative to balance size
+      const recent24h = this.trades.filter((t) => now - new Date(t.timestamp).getTime() < 24 * 36e5);
+      if (recent24h.length > 0) {
+        // Estimate balance from trade sizes (sum of all trade values)
+        const totalTradeValue = recent24h.reduce((sum, t) => {
+          const size = (t.quantity ?? 1) * (t.price ?? 0);
+          return sum + size;
+        }, 0);
+        // Estimate current balance (rough approximation: use average trade size * 20 as balance proxy)
+        const avgTradeSize = totalTradeValue / recent24h.length;
+        const estimatedBalance = avgTradeSize * 20; // Rough estimate
+        if (estimatedBalance > 0) {
+          const tradesPerBalancePct = (recent24h.length * avgTradeSize) / estimatedBalance;
+          if (tradesPerBalancePct > BIAS_THRESHOLDS.OVERTRADING_TRADES_PER_BALANCE_PCT) {
+            score += 20;
+            factors.push(`Trading volume represents ${(tradesPerBalancePct * 100).toFixed(1)}% of estimated balance — excessive relative to account size`);
+          }
+        }
+      }
+      
+      // Pattern 5: Frequent switching of positions (asset hopping)
+      const recent10 = this.trades.slice(-10);
+      if (recent10.length >= 5) {
+        const uniqueAssets = new Set(recent10.map(t => t.asset));
+        if (uniqueAssets.size > BIAS_THRESHOLDS.OVERTRADING_ASSET_SWITCH_THRESHOLD) {
+          score += 15;
+          factors.push(`${uniqueAssets.size} different assets in last ${recent10.length} trades — frequent position switching`);
+        }
+        // Check for rapid asset changes (switching every trade)
+        let assetSwitches = 0;
+        for (let i = 1; i < recent10.length; i++) {
+          if (recent10[i].asset !== recent10[i - 1].asset) assetSwitches++;
+        }
+        const switchRate = assetSwitches / (recent10.length - 1);
+        if (switchRate > 0.7) { // More than 70% of trades switch assets
+          score += 12;
+          factors.push(`Switching positions ${(switchRate * 100).toFixed(0)}% of the time — lack of position discipline`);
+        }
+      }
+      
+      // Pattern 6: Trading after large losses
+      const recentTrades = this.trades.slice(-20);
+      if (recentTrades.length >= 3) {
+        // Find large losses (>5% of average trade size)
+        const avgTradeValue = recentTrades.reduce((sum, t) => {
+          const size = (t.quantity ?? 1) * (t.price ?? 0);
+          return sum + size;
+        }, 0) / recentTrades.length;
+        const largeLossThreshold = avgTradeValue * 0.05;
+        
+        for (let i = recentTrades.length - 2; i >= 0; i--) {
+          const trade = recentTrades[i];
+          if ((trade.pl ?? 0) < -largeLossThreshold) {
+            // Check if there are trades soon after this loss
+            const lossTime = new Date(trade.timestamp).getTime();
+            const tradesAfterLoss = recentTrades.filter(t => {
+              const tTime = new Date(t.timestamp).getTime();
+              return tTime > lossTime && tTime <= lossTime + BIAS_THRESHOLDS.OVERTRADING_POST_LOSS_WINDOW_MINUTES * 6e4;
+            });
+            if (tradesAfterLoss.length >= 2) {
+              score += 18;
+              factors.push(`${tradesAfterLoss.length} trades within ${BIAS_THRESHOLDS.OVERTRADING_POST_LOSS_WINDOW_MINUTES} min of a $${Math.abs(trade.pl ?? 0).toFixed(2)} loss — emotional trading`);
+              break; // Only count once
+            }
+          }
+        }
+      }
+      
+      // Pattern 7: Trading after large wins (overconfidence)
+      if (recentTrades.length >= 3) {
+        const avgTradeValue = recentTrades.reduce((sum, t) => {
+          const size = (t.quantity ?? 1) * (t.price ?? 0);
+          return sum + size;
+        }, 0) / recentTrades.length;
+        const largeWinThreshold = avgTradeValue * 0.05;
+        
+        for (let i = recentTrades.length - 2; i >= 0; i--) {
+          const trade = recentTrades[i];
+          if ((trade.pl ?? 0) > largeWinThreshold) {
+            // Check if there are trades soon after this win
+            const winTime = new Date(trade.timestamp).getTime();
+            const tradesAfterWin = recentTrades.filter(t => {
+              const tTime = new Date(t.timestamp).getTime();
+              return tTime > winTime && tTime <= winTime + BIAS_THRESHOLDS.OVERTRADING_POST_WIN_WINDOW_MINUTES * 6e4;
+            });
+            if (tradesAfterWin.length >= 3) {
+              score += 15;
+              factors.push(`${tradesAfterWin.length} trades within ${BIAS_THRESHOLDS.OVERTRADING_POST_WIN_WINDOW_MINUTES} min of a $${(trade.pl ?? 0).toFixed(2)} win — overconfidence after success`);
+              break; // Only count once
+            }
+          }
+        }
+      }
+      
+      // Pattern 8: Win rate declining while frequency increases (existing)
       const recent = this.trades.slice(-20);
       if (recent.length >= 8) {
         const mid = Math.floor(recent.length / 2);
@@ -126,16 +237,17 @@
         const wr2 = recent.slice(mid).filter((t) => (t.pl ?? 0) > 0).length / (recent.length - mid);
         if (wr2 < wr1 - 0.25 && currentRate > 5) {
           score += 10;
-          factors.push("Win rate declining while trade frequency increases");
+          factors.push("Win rate declining while trade frequency increases — ignoring strategy discipline");
         }
       }
+      
       score = Math.min(100, score);
       return {
         detected: score >= 50,
         type: "overtrading",
         severity: score >= 85 ? "high" : score >= 65 ? "moderate" : "low",
         score,
-        description: score >= 50 ? "You are trading significantly more frequently than your baseline. This level of activity is often driven by impulse rather than strategy." : "Trade frequency is within normal range.",
+        description: score >= 50 ? "You are trading significantly more frequently than your baseline. This level of activity is often driven by impulse rather than strategy. Consider setting daily trade limits and sticking to your trading plan." : "Trade frequency is within normal range.",
         factors
       };
     }
