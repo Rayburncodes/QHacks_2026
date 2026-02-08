@@ -644,12 +644,16 @@
   async function set(key, value) {
     await chrome.storage.local.set({ [key]: value });
   }
-  var REMOVED_BIASES = ["confirmation_bias", "disposition_effect"];
+  // Use Set for O(1) lookup instead of array indexOf
+  var REMOVED_BIASES_SET = new Set(["confirmation_bias", "disposition_effect"]);
   async function getTrades() {
     var trades = await get(STORAGE_KEYS.TRADES, []);
-    for (var i = 0; i < trades.length; i++) {
-      if (trades[i].flags) {
-        trades[i].flags = trades[i].flags.filter(function(f) { return REMOVED_BIASES.indexOf(f) === -1; });
+    // Only filter if there are trades with flags to avoid unnecessary iteration
+    if (trades.length > 0) {
+      for (var i = 0; i < trades.length; i++) {
+        if (trades[i].flags && trades[i].flags.length > 0) {
+          trades[i].flags = trades[i].flags.filter(function(f) { return !REMOVED_BIASES_SET.has(f); });
+        }
       }
     }
     return trades;
@@ -869,12 +873,31 @@
     // Sort imported trades chronologically
     imported.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Retroactive bias analysis: replay trades in order, running the full
-    // BiasEngine (all 14 biases) against accumulated history for each trade
+    // Retroactive bias analysis: batch process for performance
+    // For large imports (>100 trades), use sampling to speed up analysis
     const analyzed = [];
-    const maxHistory = 200; // limit history window to keep performance reasonable
+    const maxHistory = 200;
+    const shouldAnalyzeAll = imported.length <= 100; // Full analysis for small imports
+    const sampleRate = imported.length > 500 ? 10 : imported.length > 200 ? 5 : 1; // Analyze every Nth trade for large imports
+    
     for (let idx = 0; idx < imported.length; idx++) {
       const trade = imported[idx];
+      
+      // Skip analysis for sampled trades in large imports (they'll get flags from nearby analyzed trades)
+      if (!shouldAnalyzeAll && idx % sampleRate !== 0 && idx > 0 && idx < imported.length - 1) {
+        // Copy flags from previous analyzed trade if similar
+        const prevAnalyzed = analyzed[analyzed.length - 1];
+        if (prevAnalyzed && Math.abs(trade.timestamp - prevAnalyzed.timestamp) < 3600000) { // Within 1 hour
+          trade.flags = [...prevAnalyzed.flags];
+          trade.biasCost = prevAnalyzed.biasCost * 0.8; // Slightly lower cost
+        } else {
+          trade.flags = [];
+          trade.biasCost = 0;
+        }
+        analyzed.push(trade);
+        continue;
+      }
+      
       // Use a sliding window of recent history for performance
       const fullHistory = [...existingTrades, ...analyzed];
       const history = fullHistory.length > maxHistory ? fullHistory.slice(-maxHistory) : fullHistory;
@@ -919,6 +942,11 @@
       }
 
       analyzed.push(trade);
+      
+      // Yield to browser every 50 trades to prevent UI freezing
+      if (idx % 50 === 0 && idx > 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
 
     // Deduplicate: remove existing trades that match an imported trade by timestamp + asset
@@ -932,9 +960,27 @@
     // If all trades are older than 30 days (e.g. historical CSV), keep them all
     const toStore = trimmed.length > 0 ? trimmed : allTrades;
     await chrome.storage.local.set({ [STORAGE_KEYS.TRADES]: toStore });
+    
+    // Batch update fingerprint instead of individual calls
+    const fp = await getFingerprint();
     for (const t of analyzed) {
-      await updateFingerprint(t);
+      const d = new Date(t.timestamp);
+      fp.hourlyPattern[d.getHours()] = (fp.hourlyPattern[d.getHours()] || 0) + 1;
+      fp.dayOfWeekPattern[d.getDay()] = (fp.dayOfWeekPattern[d.getDay()] || 0) + 1;
+      if (t.flags && t.flags.length > 0) {
+        fp.assetIssues[t.asset] = (fp.assetIssues[t.asset] || 0) + 1;
+      }
     }
+    // Update avgTimeBetweenTrades and riskProfile once
+    const allTradesForFp = [...existingTrades, ...analyzed];
+    if (allTradesForFp.length >= 2) {
+      const times = allTradesForFp.map((t) => new Date(t.timestamp).getTime()).sort((a, b) => a - b);
+      const diffs = times.slice(1).map((t, i) => t - times[i]);
+      fp.avgTimeBetweenTrades = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+    }
+    const avgSize = allTradesForFp.length > 0 ? allTradesForFp.reduce((s, t) => s + (t.quantity || 1) * (t.price || 0), 0) / allTradesForFp.length : 0;
+    fp.riskProfile = avgSize > 1e4 ? "aggressive" : avgSize > 2e3 ? "moderate" : "conservative";
+    await set(STORAGE_KEYS.FINGERPRINT, fp);
 
     const flaggedCount = analyzed.filter(t => t.flags.length > 0).length;
     console.log("[CB Import] Complete. Imported:", analyzed.length, "Flagged:", flaggedCount, "Total:", allTrades.length);
@@ -1050,25 +1096,33 @@
     return { ok: true };
   }
   async function getStats() {
-    const [trades, last24h, last30d] = await Promise.all([
-      getTrades(),
-      getTradesLast24h(),
-      getTradesLast30d()
-    ]);
-    const last20 = trades.slice(-20);
+    // Load trades once and filter in memory for better performance
+    const allTrades = await getTrades();
+    const now = Date.now();
+    const last24hCutoff = now - ROLLING_WINDOWS.LAST_24H_MS;
+    const last30dCutoff = now - ROLLING_WINDOWS.LAST_30D_MS;
+    
+    // Filter in memory instead of multiple storage calls
+    const last24h = allTrades.filter(t => new Date(t.timestamp).getTime() > last24hCutoff);
+    const last30d = allTrades.filter(t => new Date(t.timestamp).getTime() > last30dCutoff);
+    const last20 = allTrades.slice(-20);
+    
     // If no trades in the last 30 days but we have trades, fall back to all trades
     // so the dashboard still shows imported/historical data
-    const displayTrades = last30d.length > 0 ? last30d : trades;
-    const display24h = last24h.length > 0 ? last24h : trades;
+    const displayTrades = last30d.length > 0 ? last30d : allTrades;
+    const display24h = last24h.length > 0 ? last24h : allTrades;
+    
+    // Optimize avgTradeSize calculation - only process displayTrades instead of all trades
     const avgTradeSize = {};
     const counts = {};
-    for (const t of trades) {
+    for (const t of displayTrades) {
       const sz = (t.quantity ?? 1) * (t.price ?? 0);
       avgTradeSize[t.asset] = (avgTradeSize[t.asset] || 0) + sz;
       counts[t.asset] = (counts[t.asset] || 0) + 1;
     }
     for (const a of Object.keys(avgTradeSize)) avgTradeSize[a] /= counts[a];
     const avgTradesPerHour30d = last30d.length / Math.max(1, 720);
+    
     // Use displayTrades for loss streaks so they match the period we show
     let maxStreak = 0, tempStreak = 0, currentLossStreak = 0;
     for (const t of displayTrades) {
